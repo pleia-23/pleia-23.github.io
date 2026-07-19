@@ -4,27 +4,38 @@
    所有函数挂在 window 上，各页面直接调用。 */
 
 const API_BASE = 'https://tumi-d9guyt1ju744e0622.service.tcloudbase.com';
-// 跨域照片数据接口：GitHub Pages 等外部站点无法直接读取 CloudBase 静态文件（无 CORS 头），
-// 统一走服务端代理转发，代理已带 Access-Control-Allow-Origin: *
+// 照片数据接口（含全部精选图与配色）：
+//   优先同源静态文件 /photos.json —— GitHub Pages / CloudStudio 静态托管直接 serve，
+//   自带 CDN + 浏览器缓存，最快最稳，且不需要跨域代理。
+//   海外 / 旧环境取不到时，再走服务端代理 /api/photos 兜底（代理带 CORS 头）。
 const PROXY_PHOTOS_URL = API_BASE + '/api/photos';
+// 同源静态 photos.json 的绝对路径：从「当前页面所在目录」推导，
+// 这样无论是首页 / 还是子页面 color.html，都能正确指向站点根目录的 photos.json。
+const STATIC_PHOTOS_URL = (location.pathname.replace(/[^/]*$/, '')) + 'photos.json';
 
-/* ---------- 照片数据加载（带本地缓存，避免重复跨海下载） ----------
-   统一走服务端代理 /api/photos（CloudBase 函数已做「瘦身 + gzip + 长缓存」）。
+/* ---------- 照片数据加载（带本地缓存，避免重复下载） ----------
+   优先读同源 /photos.json（静态、秒开），失败才走代理兜底；
    首次加载后把数据存进浏览器本地（localStorage），之后打开秒出，
-   后台再静默刷新一次保证数据最新。所有功能照常，不丢任何特性。 */
+   后台再静默刷新一次。所有功能照常，不丢任何特性。 */
 const LS_PHOTOS = 'picseek_photos_v1';
 async function loadPhotosData(){
   let cached = null;
   try{ const raw = localStorage.getItem(LS_PHOTOS); if(raw) cached = JSON.parse(raw); }catch(e){}
-  const fetchFresh = async ()=>{
-    const r = await fetch(PROXY_PHOTOS_URL, {cache:'force-cache'});
-    if(!r.ok) throw new Error('photos proxy failed: ' + r.status);
+  const fetchFresh = async (url)=>{
+    const r = await fetch(url, {cache:'force-cache'});
+    if(!r.ok) throw new Error('photos fetch failed (' + url + '): ' + r.status);
     const j = await r.json();
     try{ localStorage.setItem(LS_PHOTOS, JSON.stringify(j)); }catch(e){}
     return j;
   };
-  if(cached){ fetchFresh().catch(()=>{}); return cached; }   // 先用缓存秒开，后台静默更新
-  return await fetchFresh();
+  if(cached){
+    // 先用缓存秒开，后台静默刷新（先试同源静态，再试代理兜底）
+    fetchFresh(STATIC_PHOTOS_URL).catch(()=>fetchFresh(PROXY_PHOTOS_URL).catch(()=>{}));
+    return cached;
+  }
+  // 首次：先同源静态，失败再代理兜底
+  try{ return await fetchFresh(STATIC_PHOTOS_URL); }
+  catch(e){ return await fetchFresh(PROXY_PHOTOS_URL); }
 }
 
 /* ---------- 多图源配置（前端只放名字+能否搜；密钥全在服务端） ---------- */

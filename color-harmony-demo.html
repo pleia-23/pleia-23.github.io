@@ -1,0 +1,181 @@
+<!doctype html>
+<html lang="zh">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>图觅 · 大师配色选拔</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:#0e0e10;color:#eee;font-family:-apple-system,"PingFang SC","Microsoft YaHei",sans-serif;padding:20px 14px 80px}
+.head{max-width:1080px;margin:0 auto 14px}
+.head h1{font-size:18px;font-weight:600}
+.head p{font-size:12px;color:#9a9a9a;margin-top:6px;line-height:1.7}
+#status{position:sticky;top:0;background:rgba(14,14,16,.92);padding:10px 0;font-size:13px;color:#7fd1a6;z-index:5}
+.grid{max-width:1080px;margin:0 auto;display:grid;grid-template-columns:repeat(auto-fill,minmax(190px,1fr));gap:14px}
+.card{position:relative;aspect-ratio:3/4;border-radius:12px;overflow:hidden;background:#1a1a1c}
+.card img{width:100%;height:100%;object-fit:cover;display:block}
+.badge{position:absolute;top:8px;left:8px;background:rgba(0,0,0,.55);padding:4px 8px;border-radius:8px;font-size:11px;line-height:1.35}
+.badge .sc{color:#ffd76a;font-weight:600}
+.badge .tp{color:#fff}
+.by{position:absolute;left:8px;bottom:8px;font-size:10px;color:#fff;text-shadow:0 1px 3px #000;max-width:70%;line-height:1.4}
+</style>
+</head>
+<body>
+<div class="head">
+  <h1>图觅 PICSEEK · 大师配色选拔</h1>
+  <p>素材：偏建筑 / 风景 / 静物 / 强配色的作品级图（精选 44 张）。主色在<b>浏览器前端用 canvas 直接计算</b>——图片 CDN（Unsplash）已开启跨域，canvas 读取不污染，圆点颜色 100% 准确，不依赖后端。</p>
+</div>
+<div id="status">准备中…</div>
+<div class="grid" id="grid"></div>
+<script>
+const API="https://tumi-d9guyt1ju744e0622.service.tcloudbase.com/api";
+const TOPICS=[
+  'minimalist architecture',
+  'landscape photography golden hour',
+  'fine art color study',
+  'color blocking still life',
+  'Wes Anderson color palette',
+  'abstract color gradient'
+];
+function rgb2hsl(r,g,b){
+  r/=255;g/=255;b/=255;
+  const mx=Math.max(r,g,b),mn=Math.min(r,g,b);
+  let h=0,s=0,l=(mx+mn)/2;
+  if(mx!==mn){const d=mx-mn;s=l>0.5?d/(2-mx-mn):d/(mx+mn);
+    if(mx===r)h=(g-b)/d+(g<b?6:0);
+    else if(mx===g)h=(b-r)/d+2;
+    else h=(r-g)/d+4;
+    h*=60;}
+  return {h,s,l};
+}
+function rgb2hex(r,g,b){
+  const f=v=>{v=Math.max(0,Math.min(255,Math.round(v||0)));return v.toString(16).padStart(2,'0');};
+  return '#'+f(r)+f(g)+f(b);
+}
+function hueDist(a,b){let d=Math.abs(a-b)%360;return d>180?360-d:d;}
+function harmonyScore(colors){
+  if(!colors||colors.length<2)return{score:0,type:'单色'};
+  const hs=colors.map(c=>c.h);
+  let type='散乱',base=30;
+  if(colors.length===2){
+    const d=hueDist(hs[0],hs[1]);
+    if(d>150){type='互补撞色';base=80;}
+    else if(d>=25&&d<=70){type='邻近和谐';base=74;}
+    else if(d<25){type='同色系';base=62;}
+  }else if(colors.length===3){
+    const d12=hueDist(hs[0],hs[1]),d23=hueDist(hs[1],hs[2]),d13=hueDist(hs[0],hs[2]);
+    if(Math.abs(d12-120)<35&&Math.abs(d23-120)<35){type='三角平衡';base=76;}
+    else if(Math.abs(d12-150)<40||Math.abs(d13-150)<40){type='分裂互补';base=74;}
+    else{type='多色组合';base=52;}
+  }else{type='丰富多色';base=50;}
+  const sats=colors.map(c=>c.s);
+  const avgS=sats.reduce((a,b)=>a+b,0)/sats.length;
+  let bonus=0;
+  if(avgS>=0.30&&avgS<0.85)bonus=10;
+  else if(avgS>=0.18)bonus=-8;
+  else bonus=-28;
+  const ls=colors.map(c=>c.l);
+  const contrast=Math.max(...ls)-Math.min(...ls);
+  if(contrast>0.22)bonus+=5;
+  else if(contrast<0.15)bonus-=12;
+  return{score:Math.max(0,Math.min(100,Math.round(base+bonus))),type};
+}
+function skinPenalty(colors){
+  if(!colors||!colors.length)return 0;
+  const m=colors[0];
+  const skin=m.h>10&&m.h<45&&m.s>0.22&&m.s<0.66&&m.l>0.35&&m.l<0.78;
+  const total=colors.reduce((a,c)=>a+c.c,0)||1;
+  const share=m.c/total;
+  return (skin&&share>0.45)?18:0;
+}
+// 把 [{hex,rgb:[r,g,b]}] 转成内部 {r,g,b,h,s,l} 供打分用
+function toColors(arr){
+  return (arr||[]).map(c=>{
+    const rgb=c.rgb||[0,0,0];
+    const hsl=rgb2hsl(rgb[0],rgb[1],rgb[2]);
+    return {r:rgb[0],g:rgb[1],b:rgb[2],h:hsl.h,s:hsl.s,l:hsl.l,c:1};
+  });
+}
+// 前端 canvas 提取主色：图片 CDN 已开跨域，crossOrigin='anonymous' 不会污染 canvas
+function loadImage(url){
+  return new Promise((resolve)=>{
+    const img=new Image();
+    img.crossOrigin='anonymous';      // 必须在 src 之前设置
+    img.onload=()=>resolve(img);
+    img.onerror=()=>resolve(null);
+    img.src=url;
+  });
+}
+function extractDominant(img,n=3){
+  try{
+    const S=32;
+    const cv=document.createElement('canvas');
+    cv.width=S; cv.height=S;
+    const ctx=cv.getContext('2d',{willReadFrequently:true});
+    ctx.drawImage(img,0,0,S,S);
+    const data=ctx.getImageData(0,0,S,S).data;   // 不抛异常即未污染
+    const map=new Map();
+    for(let i=0;i<data.length;i+=4){
+      if(data[i+3]<125) continue;               // 跳过透明像素
+      const r=data[i],g=data[i+1],b=data[i+2];
+      const key=(r<<16)|(g<<8)|b;
+      map.set(key,(map.get(key)||0)+1);
+    }
+    const arr=[...map.entries()].map(([k,c])=>({r:(k>>16)&255,g:(k>>8)&255,b:k&255,n:c}));
+    arr.sort((a,b)=>b.n-a.n);
+    const out=[];
+    for(const c of arr){
+      if(out.length>=n) break;
+      if(out.some(o=>Math.max(Math.abs(o.r-c.r),Math.abs(o.g-c.g),Math.abs(o.b-c.b))<48)) continue;
+      out.push(c);
+    }
+    return out.map(c=>({hex:rgb2hex(c.r,c.g,c.b),rgb:[c.r,c.g,c.b]}));
+  }catch(e){
+    return [];   // 极少数未开跨域的图会走到这里，直接跳过
+  }
+}
+const grid=document.getElementById('grid');
+const status=document.getElementById('status');
+async function fetchPhotos(){
+  // 读取精选图集：同源优先 photos.json，外部站点走跨域代理
+  try{
+    const j=await loadPhotosData();
+    return (j.results||[]).slice(0,48);
+  }catch(e){
+    return [];
+  }
+}
+async function run(){
+  const photos=await fetchPhotos();
+  if(!photos.length){ status.textContent='未拉到图片，请检查网络 / 代理。'; return; }
+  let scanned=0,passed=0;
+  for(const p of photos){
+    const img=await loadImage(p.thumb||p.full);
+    if(!img) continue;
+    const raw=extractDominant(img,3);
+    if(!raw||raw.length<2) continue;
+    const colors=toColors(raw);
+    scanned++;
+    const {score,type}=harmonyScore(colors);
+    const pen=skinPenalty(colors);
+    const finalScore=Math.max(0,score-pen);
+    status.textContent='已扫描 '+scanned+' 张，选拔出 '+passed+' 张…';
+    if(finalScore>=72){
+      passed++;
+      const swHtml=raw.map(c=>'<i style="display:inline-block;width:28px;height:28px;border-radius:50%;background-color:'+c.hex+';border:2px solid #fff;box-shadow:0 1px 4px rgba(0,0,0,.7)"></i>').join('');
+      const hexText=raw.map(c=>c.hex).join('  ');
+      const card=document.createElement('div');
+      card.className='card';
+      card.innerHTML='<img src="'+p.thumb+'">'+
+        '<div class="badge"><div class="sc">'+finalScore+'分</div><div class="tp">'+type+'</div></div>'+
+        '<div style="position:absolute;right:8px;bottom:8px;display:flex;gap:6px">'+swHtml+'</div>'+
+        '<div class="by">'+hexText+'<br>'+(p.photographer||'')+'</div>';
+      grid.appendChild(card);
+    }
+  }
+  status.textContent='完成：扫描 '+scanned+' 张，选拔出 '+passed+' 张优秀（≥72分）';
+}
+run();
+</script>
+</body>
+</html>
