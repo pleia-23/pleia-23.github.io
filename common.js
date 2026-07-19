@@ -8,20 +8,23 @@ const API_BASE = 'https://tumi-d9guyt1ju744e0622.service.tcloudbase.com';
 // 统一走服务端代理转发，代理已带 Access-Control-Allow-Origin: *
 const PROXY_PHOTOS_URL = API_BASE + '/api/photos';
 
-/* ---------- 照片数据加载（同源优先，跨域兜底） ----------
-   同源部署（CloudBase 静态托管）直接用本地 photos.json；
-   外部站点（GitHub Pages）本地没有该文件，自动改走代理。 */
+/* ---------- 照片数据加载（带本地缓存，避免重复跨海下载） ----------
+   统一走服务端代理 /api/photos（CloudBase 函数已做「瘦身 + gzip + 长缓存」）。
+   首次加载后把数据存进浏览器本地（localStorage），之后打开秒出，
+   后台再静默刷新一次保证数据最新。所有功能照常，不丢任何特性。 */
+const LS_PHOTOS = 'picseek_photos_v1';
 async function loadPhotosData(){
-  try{
-    const r = await fetch('photos.json');
-    if(r.ok){
-      const j = await r.json();
-      if(j && (Array.isArray(j.results) ? j.results.length : (Array.isArray(j) ? j.length : 0))) return j;
-    }
-  }catch(e){ /* 同源无文件时忽略，走代理 */ }
-  const r = await fetch(PROXY_PHOTOS_URL);
-  if(!r.ok) throw new Error('photos proxy failed: ' + r.status);
-  return await r.json();
+  let cached = null;
+  try{ const raw = localStorage.getItem(LS_PHOTOS); if(raw) cached = JSON.parse(raw); }catch(e){}
+  const fetchFresh = async ()=>{
+    const r = await fetch(PROXY_PHOTOS_URL, {cache:'force-cache'});
+    if(!r.ok) throw new Error('photos proxy failed: ' + r.status);
+    const j = await r.json();
+    try{ localStorage.setItem(LS_PHOTOS, JSON.stringify(j)); }catch(e){}
+    return j;
+  };
+  if(cached){ fetchFresh().catch(()=>{}); return cached; }   // 先用缓存秒开，后台静默更新
+  return await fetchFresh();
 }
 
 /* ---------- 多图源配置（前端只放名字+能否搜；密钥全在服务端） ---------- */
