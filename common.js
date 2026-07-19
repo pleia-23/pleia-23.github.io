@@ -141,22 +141,107 @@ function hueToColorWord(h){
   if(h<290) return 'purple';
   return 'pink';
 }
+/* ---------- 配色打分（harmonyScore，v2：审美 + 色彩搭配双引擎） ----------
+   输入 colors: [{h,s,l, ...}]  (h:0-360, s/l:0-1)
+   输出 {score:0-100, type:'中文类型'}
+   评分维度：
+     1) 色相结构（邻近/互补/三角/分裂互补/同色系…）— 配色搭配核心
+     2) 饱和度品味（克制优雅，反对过饱和霓虹）— design-taste 纪律
+     3) 明度层级（对比度决定"出片感"）
+     4) 温度协调（暖+暖 / 冷+冷 优于冷暖乱炖）
+     5) 结构平衡（夹角不过分悬殊 = 更像"有意设计"）
+   另外单独提供 skinPenalty / aiGradientPenalty 供调用方叠加扣分。 */
 function harmonyScore(colors){
-  if(!colors||colors.length<2)return{score:0,type:'一色'};
-  const hs=colors.map(c=>c.h);
-  let type='多彩',base=30;
-  if(colors.length===2){const d=hueDist(hs[0],hs[1]);
-    if(d>150){type='对撞';base=80;} else if(d>=25&&d<=70){type='和声';base=74;} else if(d<25){type='同调';base=62;}}
-  else if(colors.length===3){const d12=hueDist(hs[0],hs[1]),d23=hueDist(hs[1],hs[2]),d13=hueDist(hs[0],hs[2]);
-    if(Math.abs(d12-120)<35&&Math.abs(d23-120)<35){type='三音色';base=76;}
-    else if(Math.abs(d12-150)<40||Math.abs(d13-150)<40){type='对比';base=74;} else {type='多彩';base=52;}}
-  else{type='缤纷';base=50;}
-  const sats=colors.map(c=>c.s); const avgS=sats.reduce((a,b)=>a+b,0)/sats.length;
-  let bonus=0;
-  if(avgS>=0.30&&avgS<0.85)bonus=10; else if(avgS>=0.18)bonus=-8; else bonus=-28;
-  const ls=colors.map(c=>c.l); const contrast=Math.max(...ls)-Math.min(...ls);
-  if(contrast>0.22)bonus+=5; else if(contrast<0.15)bonus-=12;
-  return{score:Math.max(0,Math.min(100,Math.round(base+bonus))),type};
+  if(!colors||colors.length<2) return {score:0, type:'单色'};
+  const n=colors.length;
+  const hs=colors.map(c=>((c.h||0)%360+360)%360);
+  const ss=colors.map(c=>c.s==null?0:c.s);
+  const ls=colors.map(c=>c.l==null?0.5:c.l);
+  const avgS=ss.reduce((a,b)=>a+b,0)/n;
+  const minL=Math.min(...ls), maxL=Math.max(...ls);
+  const contrast=maxL-minL;
+
+  // 色环上的夹角分布（用于判断配色结构）
+  const sorted=[...hs].sort((a,b)=>a-b);
+  const gaps=[];
+  for(let i=0;i<n;i++){
+    const a=sorted[i], b=sorted[(i+1)%n];
+    const d=(b-a+360)%360;        // 色环上相邻两色的正向弧长，全部相加=360
+    gaps.push(d);
+  }
+  const maxGap=Math.max(...gaps);
+  const span=360-maxGap;          // 颜色群实际占据的色环弧长（越小越紧凑/邻近）
+  const sumOther=gaps.reduce((a,b)=>a+b,0)-maxGap;
+  const balanced = sumOther>0 && (maxGap/sumOther) < 2.4;
+
+  // 温度（暖=红橙黄，冷=青蓝紫，绿中性）
+  const tempOf=h=> (h<55||h>=330)?1 : (h>=200&&h<285)?-1 : 0;
+  const temps=hs.map(tempOf);
+  const warm=temps.filter(t=>t>0).length, cool=temps.filter(t=>t<0).length;
+  const tempCoherent = (warm===0||cool===0);
+
+  let type='', base=0;
+  if(n===2){
+    const d=hueDist(hs[0],hs[1]);
+    if(d>=35&&d<=75){ type='邻近和谐'; base=82; }
+    else if(d>=25&&d<35){ type='柔邻近'; base=76; }
+    else if(d>150){ type='互补撞色'; base=76; }
+    else if(d>=75&&d<=150){ type='宽撞色'; base=66; }
+    else { type='同色系'; base=70; }          // d<25
+  } else if(n===3){
+    const g1=(sorted[1]-sorted[0]+360)%360, g2=(sorted[2]-sorted[1]+360)%360, g3=360-g1-g2;
+    const tri   = Math.abs(g1-120)<26 && Math.abs(g2-120)<26;
+    const split = (Math.abs(g1-150)<32||Math.abs(g2-150)<32||Math.abs(g3-150)<32) && g1>40 && g2>40;
+    const analog= span<100;
+    if(tri){ type='三角平衡'; base=80; }
+    else if(split){ type='分裂互补'; base=78; }
+    else if(analog){ type='邻近三色'; base=76; }
+    else { type='三色组合'; base=58; }
+  } else {
+    const tightAnalog = span<120 && contrast>0.22;
+    if(tightAnalog){ type='邻近族'; base=70; }
+    else if(balanced){ type='均衡多色'; base=62; }
+    else { type='丰富多色'; base=50; }
+  }
+
+  // 饱和度品味（克制、不刺眼；呼应 design-taste 反对过饱和）
+  let satBonus=0;
+  if(avgS>=0.28&&avgS<=0.60) satBonus=+12;        // 优雅的中等饱和
+  else if(avgS>0.60&&avgS<=0.78) satBonus=+4;      // 鲜活但仍可控
+  else if(avgS>0.78) satBonus=-16;                 // 霓虹刺眼
+  else if(avgS>=0.16) satBonus=-6;                 // 偏灰
+  else satBonus=-24;                               // 近乎无彩，沉闷
+
+  // 明度结构（价值层级，决定"出片感"）
+  let valBonus=0;
+  if(contrast>=0.30) valBonus=+12;
+  else if(contrast>=0.18) valBonus=+5;
+  else if(contrast<0.10) valBonus=-16;             // 全平，发闷
+
+  // 温度协调
+  let tempBonus = tempCoherent ? +4 : -6;
+  // 结构平衡（夹角不过分悬殊 = 更像"有意设计"）；两色不涉及"均衡"，不给此分项
+  let balBonus = (n<=2) ? 0 : (balanced ? +4 : -4);
+
+  let score = base + satBonus + valBonus + tempBonus + balBonus;
+  // 浑浊惩罚：高饱和却几乎无明度差 → 脏
+  if(avgS>0.5 && contrast<0.12) score -= 10;
+  return { score: Math.max(0, Math.min(100, Math.round(score))), type };
+}
+// 肤色惩罚（人像图主色偏肤且占比高 → 配色参考价值低）
+function skinPenalty(colors){
+  if(!colors||!colors.length) return 0;
+  const m=colors[0];
+  const skin=m.h>10&&m.h<45&&m.s>0.22&&m.s<0.66&&m.l>0.35&&m.l<0.78;
+  const total=colors.reduce((a,c)=>a+(c.c||1),0)||1;
+  const share=(m.c||1)/total;
+  return (skin&&share>0.45)?18:0;
+}
+// AI 科技渐变惩罚（design-taste 黑名单：紫+蓝+青 高饱和叠一起的"AI 脸"）
+function aiGradientPenalty(colors){
+  if(!colors||colors.length<3) return 0;
+  const ai = colors.filter(c=> c.s>0.45 && ((c.h>=250&&c.h<=320)||(c.h>=190&&c.h<=230)) );
+  return ai.length>=3 ? 14 : 0;
 }
 // canvas 提色（前端兜底）：用 K-Means 聚类，过滤暗/亮/灰，保证颜色有参考价值
 function rgb2lab(r,g,b){

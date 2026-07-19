@@ -54,31 +54,67 @@ function rgb2hex(r,g,b){
 }
 function hueDist(a,b){let d=Math.abs(a-b)%360;return d>180?360-d:d;}
 function harmonyScore(colors){
-  if(!colors||colors.length<2)return{score:0,type:'单色'};
-  const hs=colors.map(c=>c.h);
-  let type='散乱',base=30;
-  if(colors.length===2){
+  if(!colors||colors.length<2) return {score:0, type:'单色'};
+  const n=colors.length;
+  const hs=colors.map(c=>((c.h||0)%360+360)%360);
+  const ss=colors.map(c=>c.s==null?0:c.s);
+  const ls=colors.map(c=>c.l==null?0.5:c.l);
+  const avgS=ss.reduce((a,b)=>a+b,0)/n;
+  const minL=Math.min(...ls), maxL=Math.max(...ls);
+  const contrast=maxL-minL;
+  const sorted=[...hs].sort((a,b)=>a-b);
+  const gaps=[];
+  for(let i=0;i<n;i++){
+    const a=sorted[i], b=sorted[(i+1)%n];
+    const d=(b-a+360)%360;
+    gaps.push(d);
+  }
+  const maxGap=Math.max(...gaps);
+  const span=360-maxGap;
+  const sumOther=gaps.reduce((a,b)=>a+b,0)-maxGap;
+  const balanced = sumOther>0 && (maxGap/sumOther) < 2.4;
+  const tempOf=h=> (h<55||h>=330)?1 : (h>=200&&h<285)?-1 : 0;
+  const temps=hs.map(tempOf);
+  const warm=temps.filter(t=>t>0).length, cool=temps.filter(t=>t<0).length;
+  const tempCoherent = (warm===0||cool===0);
+  let type='', base=0;
+  if(n===2){
     const d=hueDist(hs[0],hs[1]);
-    if(d>150){type='互补撞色';base=80;}
-    else if(d>=25&&d<=70){type='邻近和谐';base=74;}
-    else if(d<25){type='同色系';base=62;}
-  }else if(colors.length===3){
-    const d12=hueDist(hs[0],hs[1]),d23=hueDist(hs[1],hs[2]),d13=hueDist(hs[0],hs[2]);
-    if(Math.abs(d12-120)<35&&Math.abs(d23-120)<35){type='三角平衡';base=76;}
-    else if(Math.abs(d12-150)<40||Math.abs(d13-150)<40){type='分裂互补';base=74;}
-    else{type='多色组合';base=52;}
-  }else{type='丰富多色';base=50;}
-  const sats=colors.map(c=>c.s);
-  const avgS=sats.reduce((a,b)=>a+b,0)/sats.length;
-  let bonus=0;
-  if(avgS>=0.30&&avgS<0.85)bonus=10;
-  else if(avgS>=0.18)bonus=-8;
-  else bonus=-28;
-  const ls=colors.map(c=>c.l);
-  const contrast=Math.max(...ls)-Math.min(...ls);
-  if(contrast>0.22)bonus+=5;
-  else if(contrast<0.15)bonus-=12;
-  return{score:Math.max(0,Math.min(100,Math.round(base+bonus))),type};
+    if(d>=35&&d<=75){ type='邻近和谐'; base=82; }
+    else if(d>=25&&d<35){ type='柔邻近'; base=76; }
+    else if(d>150){ type='互补撞色'; base=76; }
+    else if(d>=75&&d<=150){ type='宽撞色'; base=66; }
+    else { type='同色系'; base=70; }
+  } else if(n===3){
+    const g1=(sorted[1]-sorted[0]+360)%360, g2=(sorted[2]-sorted[1]+360)%360, g3=360-g1-g2;
+    const tri   = Math.abs(g1-120)<26 && Math.abs(g2-120)<26;
+    const split = (Math.abs(g1-150)<32||Math.abs(g2-150)<32||Math.abs(g3-150)<32) && g1>40 && g2>40;
+    const analog= span<100;
+    if(tri){ type='三角平衡'; base=80; }
+    else if(split){ type='分裂互补'; base=78; }
+    else if(analog){ type='邻近三色'; base=76; }
+    else { type='三色组合'; base=58; }
+  } else {
+    const tightAnalog = span<120 && contrast>0.22;
+    if(tightAnalog){ type='邻近族'; base=70; }
+    else if(balanced){ type='均衡多色'; base=62; }
+    else { type='丰富多色'; base=50; }
+  }
+  let satBonus=0;
+  if(avgS>=0.28&&avgS<=0.60) satBonus=+12;
+  else if(avgS>0.60&&avgS<=0.78) satBonus=+4;
+  else if(avgS>0.78) satBonus=-16;
+  else if(avgS>=0.16) satBonus=-6;
+  else satBonus=-24;
+  let valBonus=0;
+  if(contrast>=0.30) valBonus=+12;
+  else if(contrast>=0.18) valBonus=+5;
+  else if(contrast<0.10) valBonus=-16;
+  let tempBonus = tempCoherent ? +4 : -6;
+  let balBonus = (n<=2) ? 0 : (balanced ? +4 : -4);
+  let score = base + satBonus + valBonus + tempBonus + balBonus;
+  if(avgS>0.5 && contrast<0.12) score -= 10;
+  return { score: Math.max(0, Math.min(100, Math.round(score))), type };
 }
 function skinPenalty(colors){
   if(!colors||!colors.length)return 0;
@@ -87,6 +123,12 @@ function skinPenalty(colors){
   const total=colors.reduce((a,c)=>a+c.c,0)||1;
   const share=m.c/total;
   return (skin&&share>0.45)?18:0;
+}
+// AI 科技渐变惩罚（design-taste 黑名单：紫+蓝+青 高饱和叠一起的"AI 脸"）
+function aiGradientPenalty(colors){
+  if(!colors||colors.length<3) return 0;
+  const ai = colors.filter(c=> c.s>0.45 && ((c.h>=250&&c.h<=320)||(c.h>=190&&c.h<=230)) );
+  return ai.length>=3 ? 14 : 0;
 }
 // 把 [{hex,rgb:[r,g,b]}] 转成内部 {r,g,b,h,s,l} 供打分用
 function toColors(arr){
@@ -157,7 +199,7 @@ async function run(){
     const colors=toColors(raw);
     scanned++;
     const {score,type}=harmonyScore(colors);
-    const pen=skinPenalty(colors);
+    const pen=skinPenalty(colors)+aiGradientPenalty(colors);
     const finalScore=Math.max(0,score-pen);
     status.textContent='已扫描 '+scanned+' 张，选拔出 '+passed+' 张…';
     if(finalScore>=72){
