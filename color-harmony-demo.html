@@ -26,7 +26,8 @@ body{background:#0e0e10;color:#eee;font-family:-apple-system,"PingFang SC","Micr
   <p>素材：偏建筑 / 风景 / 静物 / 强配色的作品级图（精选 44 张）。主色在<b>浏览器前端用 canvas 直接计算</b>——图片 CDN（Unsplash）已开启跨域，canvas 读取不污染，圆点颜色 100% 准确，不依赖后端。</p>
 </div>
 <div id="status">准备中…</div>
-<div class="grid" id="grid"></div>
+<div id="grid" class="grid"></div>
+<script src="common.js"></script>
 <script>
 const API="https://tumi-d9guyt1ju744e0622.service.tcloudbase.com/api";
 const TOPICS=[
@@ -52,90 +53,133 @@ function rgb2hex(r,g,b){
   const f=v=>{v=Math.max(0,Math.min(255,Math.round(v||0)));return v.toString(16).padStart(2,'0');};
   return '#'+f(r)+f(g)+f(b);
 }
+function hex2rgb(hex){hex=hex.replace('#','');return [parseInt(hex.slice(0,2),16),parseInt(hex.slice(2,4),16),parseInt(hex.slice(4,6),16)];}
 function hueDist(a,b){let d=Math.abs(a-b)%360;return d>180?360-d:d;}
+function clamp(v,a,b){return Math.max(a,Math.min(b,v));}
+/* ---------- 配色打分 v3：双色系统 ---------- */
+function scoreTwoColors(a,b){
+  const h1=((a.h||0)%360+360)%360, h2=((b.h||0)%360+360)%360;
+  const s1=a.s==null?0:a.s, s2=b.s==null?0:b.s;
+  const l1=a.l==null?0.5:a.l, l2=b.l==null?0.5:b.l;
+  const d=hueDist(h1,h2);
+  const avgS=(s1+s2)/2, minS=Math.min(s1,s2);
+  const lc=Math.abs(l1-l2);
+  const warm = (h1<55||h1>=330)||(h2<55||h2>=330);
+  const cool = (h1>=200&&h1<285)||(h2>=200&&h2<285);
+  const bothWarm = (h1<55||h1>=330)&&(h2<55||h2>=330);
+  const bothCool = (h1>=200&&h1<285)&&(h2>=200&&h2<285);
+  const tempCoherent = bothWarm||bothCool||(!warm&&!cool);
+  const sameSat = Math.abs(s1-s2)<0.35;
+
+  if(minS<0.12 && avgS>0.20){
+    const accent=s1>s2?a:b;
+    const neutral=s1>s2?b:a;
+    let nScore=0;
+    if(accent.s>0.35){ nScore=72; }
+    else if(accent.s>0.20){ nScore=55; }
+    if(lc>0.30) nScore+=10;
+    if(lc>0.55) nScore+=5;
+    if(neutral.l>0.85) nScore+=4;
+    if(neutral.l<0.25) nScore+=4;
+    if(accent.s>0.70) nScore-=6;
+    return { score: Math.max(0, Math.min(100, Math.round(nScore))), type: '中性强调', pair: [a.hex, b.hex] };
+  }
+
+  let hScore=0, hType='邻近和谐';
+  if(d>=12&&d<=55){ hScore=95-Math.abs(d-28)*1.35; }
+  else if(d<12){ hScore=55-d*3; }
+  if(hScore>0){ if(sameSat) hScore+=5; if(tempCoherent) hScore+=4; if(lc>=0.12&&lc<=0.55) hScore+=4; }
+
+  let cScore=0, cType='互补撞色';
+  if(d>=140&&d<=180){ cScore=92-Math.abs(d-180)*0.45; cType='互补撞色'; }
+  else if(d>=100&&d<140){ cScore=74-Math.abs(d-120)*0.75; cType='强对比'; }
+  if(cScore>0){
+    if(minS<0.25) cScore-=16; else if(minS<0.40) cScore-=6;
+    if(avgS>0.75) cScore+=4; if(lc>=0.25) cScore+=6; if(warm&&cool) cScore+=5;
+  }
+
+  let nScore=0, nType='独特创意';
+  if(d>=50&&d<=100){
+    nScore=72-Math.abs(d-75)*0.65;
+    if(minS>0.55) nScore+=10; if(lc>=0.20) nScore+=5;
+    if(!bothWarm&&!bothCool&&(warm||cool)) nScore+=3;
+  }
+
+  let score=Math.max(hScore,cScore,nScore);
+  let type=hScore>=score?hType:(cScore>=score?cType:nType);
+  if(score===0) type='普通';
+  if(avgS<0.15) score-=18;
+  if(minS>0.90&&lc<0.12) score-=10;
+  if(avgS>0.85&&lc<0.08) score-=8;
+  if(tempCoherent&&score>0) score+=3;
+  if(lc>0.45) score+=3;
+
+  return { score: Math.max(0, Math.min(100, Math.round(score))), type, pair: [a.hex, b.hex] };
+}
+function bestColorPair(colors){
+  if(!colors||colors.length<2) return {score:0, type:'单色', pair:[]};
+  if(colors.length===2) return scoreTwoColors(colors[0], colors[1]);
+  let best={score:0, type:'单色', pair:[]};
+  for(let i=0;i<colors.length;i++) for(let j=i+1;j<colors.length;j++){ const r=scoreTwoColors(colors[i],colors[j]); if(r.score>best.score) best=r; }
+  return best;
+}
 function harmonyScore(colors){
-  if(!colors||colors.length<2) return {score:0, type:'单色'};
-  const n=colors.length;
-  const hs=colors.map(c=>((c.h||0)%360+360)%360);
-  const ss=colors.map(c=>c.s==null?0:c.s);
-  const ls=colors.map(c=>c.l==null?0.5:c.l);
-  const avgS=ss.reduce((a,b)=>a+b,0)/n;
-  const minL=Math.min(...ls), maxL=Math.max(...ls);
-  const contrast=maxL-minL;
-  const sorted=[...hs].sort((a,b)=>a-b);
-  const gaps=[];
-  for(let i=0;i<n;i++){
-    const a=sorted[i], b=sorted[(i+1)%n];
-    const d=(b-a+360)%360;
-    gaps.push(d);
-  }
-  const maxGap=Math.max(...gaps);
-  const span=360-maxGap;
-  const sumOther=gaps.reduce((a,b)=>a+b,0)-maxGap;
-  const balanced = sumOther>0 && (maxGap/sumOther) < 2.4;
-  const tempOf=h=> (h<55||h>=330)?1 : (h>=200&&h<285)?-1 : 0;
-  const temps=hs.map(tempOf);
-  const warm=temps.filter(t=>t>0).length, cool=temps.filter(t=>t<0).length;
-  const tempCoherent = (warm===0||cool===0);
-  let type='', base=0;
-  if(n===2){
-    const d=hueDist(hs[0],hs[1]);
-    if(d>=35&&d<=75){ type='邻近和谐'; base=82; }
-    else if(d>=25&&d<35){ type='柔邻近'; base=76; }
-    else if(d>150){ type='互补撞色'; base=76; }
-    else if(d>=75&&d<=150){ type='宽撞色'; base=66; }
-    else { type='同色系'; base=70; }
-  } else if(n===3){
-    const g1=(sorted[1]-sorted[0]+360)%360, g2=(sorted[2]-sorted[1]+360)%360, g3=360-g1-g2;
-    const tri   = Math.abs(g1-120)<26 && Math.abs(g2-120)<26;
-    const split = (Math.abs(g1-150)<32||Math.abs(g2-150)<32||Math.abs(g3-150)<32) && g1>40 && g2>40;
-    const analog= span<100;
-    if(tri){ type='三角平衡'; base=80; }
-    else if(split){ type='分裂互补'; base=78; }
-    else if(analog){ type='邻近三色'; base=76; }
-    else { type='三色组合'; base=58; }
-  } else {
-    const tightAnalog = span<120 && contrast>0.22;
-    if(tightAnalog){ type='邻近族'; base=70; }
-    else if(balanced){ type='均衡多色'; base=62; }
-    else { type='丰富多色'; base=50; }
-  }
-  let satBonus=0;
-  if(avgS>=0.28&&avgS<=0.60) satBonus=+12;
-  else if(avgS>0.60&&avgS<=0.78) satBonus=+4;
-  else if(avgS>0.78) satBonus=-16;
-  else if(avgS>=0.16) satBonus=-6;
-  else satBonus=-24;
-  let valBonus=0;
-  if(contrast>=0.30) valBonus=+12;
-  else if(contrast>=0.18) valBonus=+5;
-  else if(contrast<0.10) valBonus=-16;
-  let tempBonus = tempCoherent ? +4 : -6;
-  let balBonus = (n<=2) ? 0 : (balanced ? +4 : -4);
-  let score = base + satBonus + valBonus + tempBonus + balBonus;
-  if(avgS>0.5 && contrast<0.12) score -= 10;
-  return { score: Math.max(0, Math.min(100, Math.round(score))), type };
+  if(!colors||colors.length<2) return {score:0, type:'单色', pair:[]};
+  const best=bestColorPair(colors);
+  let pen=skinPenalty(colors);
+  pen += uncomfortablePenalty(colors);
+  best.score=Math.max(0, Math.round(best.score-pen));
+  return best;
 }
 function skinPenalty(colors){
-  if(!colors||!colors.length)return 0;
+  if(!colors||!colors.length) return 0;
   const m=colors[0];
   const skin=m.h>10&&m.h<45&&m.s>0.22&&m.s<0.66&&m.l>0.35&&m.l<0.78;
-  const total=colors.reduce((a,c)=>a+c.c,0)||1;
-  const share=m.c/total;
+  const total=colors.reduce((a,c)=>a+(c.c||1),0)||1;
+  const share=(m.c||1)/total;
   return (skin&&share>0.45)?18:0;
 }
-// AI 科技渐变惩罚（design-taste 黑名单：紫+蓝+青 高饱和叠一起的"AI 脸"）
 function aiGradientPenalty(colors){
   if(!colors||colors.length<3) return 0;
   const ai = colors.filter(c=> c.s>0.45 && ((c.h>=250&&c.h<=320)||(c.h>=190&&c.h<=230)) );
   return ai.length>=3 ? 14 : 0;
 }
-// 把 [{hex,rgb:[r,g,b]}] 转成内部 {r,g,b,h,s,l} 供打分用
+function uncomfortablePenalty(colors){
+  if(!colors||colors.length<2) return 0;
+  let maxPen=0;
+  for(let i=0;i<colors.length;i++) for(let j=i+1;j<colors.length;j++){
+    const a=colors[i], b=colors[j];
+    const d=hueDist(a.h,b.h); const s=(a.s+b.s)/2; const lc=Math.abs(a.l-b.l);
+    if(d>=45&&d<100 && s>0.70 && lc<0.30){
+      const pen=Math.min(22, 10 + (s-0.70)*20 + (100-d)*0.08);
+      if(pen>maxPen) maxPen=pen;
+    }
+  }
+  return maxPen;
+}
+function findMostUncomfortablePair(colors){
+  if(!colors||colors.length<2) return null;
+  let worst=null, worstScore=-Infinity;
+  for(let i=0;i<colors.length;i++) for(let j=i+1;j<colors.length;j++){
+    const a=colors[i], b=colors[j];
+    const d=hueDist(a.h,b.h); const s=(a.s+b.s)/2; const lc=Math.abs(a.l-b.l);
+    let ug=0;
+    if(d>=45&&d<100){ ug += (100-d)*0.7; ug += Math.max(0,s-0.5)*40; ug += Math.max(0,0.30-lc)*30; if(s>0.6&&lc<0.30) ug+=15; }
+    if(ug>worstScore){ worstScore=ug; worst={a,b,ug}; }
+  }
+  if(!worst||worstScore<15) return null;
+  return worst;
+}
+function discomfortScore(colors){
+  const p=findMostUncomfortablePair(colors);
+  return p?Math.min(100,Math.round(p.ug)):0;
+}
+// 把 [{hex,rgb:[r,g,b]}] 转成内部 {r,g,b,h,s,l,hex,c} 供打分用
 function toColors(arr){
   return (arr||[]).map(c=>{
     const rgb=c.rgb||[0,0,0];
     const hsl=rgb2hsl(rgb[0],rgb[1],rgb[2]);
-    return {r:rgb[0],g:rgb[1],b:rgb[2],h:hsl.h,s:hsl.s,l:hsl.l,c:1};
+    return {r:rgb[0],g:rgb[1],b:rgb[2],h:hsl.h,s:hsl.s,l:hsl.l,hex:c.hex,c:1};
   });
 }
 // 前端 canvas 提取主色：图片 CDN 已开跨域，crossOrigin='anonymous' 不会污染 canvas
