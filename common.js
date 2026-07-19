@@ -814,16 +814,13 @@ function renderACardHTML(ph, colors, opts){
   const sub=opts.sub||'COLOR PAIR';
   const info=opts.info||`Photo by ${ph.photographer||'未知'}`;
   const pool=(colors&&colors.length)?colors:(ph.colors||[]);
-  const dom=pool[0];
-  let swObjs=[];
-  if(dom){
-    // 双色相映：主色（图的主色）+ 搭配色（和谐互补色），两色最好记、最出片
-    const dh=colorName(dom.hsl||dom);
-    const comp=companionColors(dom.hex).complementary;
+  // A 卡只展示图片里真实提取的前两个主色：主色 + 辅色。
+  // 如果图片只取到一个主色，才退而求其次生成互补色兜底。
+  let swObjs=pool.slice(0,2).map((c,i)=>({hex:c.hex,name:colorName(c.hsl||c),role:i===0?'主色':'辅色'}));
+  if(swObjs.length<2 && pool[0]){
+    const comp=companionColors(pool[0].hex).complementary;
     const [cr,cg,cb]=hex2rgb(comp); const chsl=rgb2hsl(cr,cg,cb);
-    swObjs=[{hex:dom.hex,name:dh,role:'主色'},{hex:comp,name:colorName(chsl),role:'搭配'}];
-  } else {
-    swObjs=pool.slice(0,2).map(c=>({hex:c.hex,name:colorName(c.hsl||c),role:''}));
+    swObjs.push({hex:comp,name:colorName(chsl),role:'搭配'});
   }
   const sws=swObjs.map(c=>`<div class="a-sw" data-hex="${c.hex}">
     <div class="a-dot" style="background:${c.hex}"></div>
@@ -907,7 +904,7 @@ function openColorDetail(ph, colors, styles){
   m.querySelector('#cTitle').textContent=title;
   m.querySelector('#cSub').textContent=`Photo by ${ph.photographer||'未知'} · ${ph.source||'图库'}`;
   m.querySelector('#cTags').innerHTML=(styles||[]).slice(0,5).map(s=>`<span class="b-tag" data-sid="${s.id}">#${s.name}</span>`).join('');
-  m.querySelector('#cSws').innerHTML=(colors||[]).slice(0,3).map((c,i)=>renderColorCardHTML(c,i)).join('');
+  m.querySelector('#cSws').innerHTML=(colors||[]).slice(0,2).map((c,i)=>renderColorCardHTML(c,i)).join('');
   m.querySelectorAll('#cSws .color-card').forEach(el=>{
     el.onclick=()=>{
       const q=hueToColorWord(rgb2hsl(...hex2rgb(el.dataset.hex)).h);
