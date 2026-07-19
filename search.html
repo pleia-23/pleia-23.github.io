@@ -1,0 +1,158 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>PicSeek · 搜图</title>
+<link rel="stylesheet" href="common.css" />
+<style>
+  .fbar{max-width:1080px;margin:18px auto 0;padding:16px 18px;background:var(--surface);border:1px solid var(--border);border-radius:18px;box-shadow:var(--shadow);
+    display:flex;gap:30px;align-items:flex-start;flex-wrap:wrap}
+  .fgroup{display:flex;flex-direction:column;gap:9px}
+  .fgroup.grow{flex:1;min-width:240px}
+  .flabel{font-family:var(--font-head);font-size:11px;letter-spacing:2px;text-transform:uppercase;color:var(--terra);font-weight:600}
+  .chip{border:1.5px solid var(--border);border-radius:999px;padding:6px 14px;font-size:12px;color:var(--muted);background:#fff;cursor:pointer;transition:.15s;font-weight:600}
+  .chip.on{background:var(--terra);color:#fff;border-color:var(--terra)}
+  .chip:hover{border-color:var(--terra);color:var(--terra)}
+  .srcs{display:flex;gap:8px;flex-wrap:wrap}
+  .srcs .chip{display:inline-flex;align-items:center;gap:6px}
+  .srcs .chip::before{content:"";width:8px;height:8px;border-radius:50%;background:var(--border)}
+  .srcs .chip.on::before{background:#fff}
+  .seg{display:inline-flex;border:1.5px solid var(--border);border-radius:999px;overflow:hidden;background:#fff}
+  .seg .chip{border:none;border-radius:0}
+  .seg .chip.on{background:var(--terra);color:#fff}
+  .quicks{display:flex;gap:8px;flex-wrap:wrap}
+  .quick{font-size:12px;color:var(--terra);cursor:pointer;background:#fff;border:1px solid var(--border);border-radius:999px;padding:5px 13px;transition:.15s}
+  .quick:hover{background:var(--terra);color:#fff;border-color:var(--terra)}
+  #status{max-width:1080px;margin:0 auto;padding:8px 18px;color:var(--muted);font-size:13px}
+  .more{display:block;margin:24px auto;background:transparent;border:1.5px solid var(--border);color:var(--ink);font-weight:500}
+  .more:hover{border-color:var(--terra);color:var(--terra)}
+</style>
+</head>
+<body>
+<header>
+  <div class="bar">
+    <div class="brand" onclick="location.href='index.html'">
+      <div class="logo">PicSeek</div>
+      <span class="tagline">全球免费影像 · 一站搜罗</span>
+    </div>
+    <nav>
+      <a class="navlink on" href="search.html">图片</a>
+      <a class="navlink" href="color.html">色彩</a>
+      <a class="navlink" href="album.html">影集</a>
+    </nav>
+  </div>
+</header>
+
+<div class="searchbar">
+  <input id="q" type="text" placeholder="想找点什么？比如：雾中的山脊 / 极简木椅 / 北欧客厅 / 银河" />
+  <button id="go">搜索</button>
+</div>
+
+<div class="fbar">
+  <div class="fgroup"><div class="flabel">来源</div><div class="srcs" id="srcGroup"></div></div>
+  <div class="fgroup"><div class="flabel">方向</div>
+    <div class="seg">
+      <span class="chip on" data-orient="all">全部</span>
+      <span class="chip" data-orient="landscape">横图</span>
+      <span class="chip" data-orient="portrait">竖图</span>
+    </div>
+  </div>
+  <div class="fgroup grow"><div class="flabel">灵感试试</div>
+    <div class="quicks">
+      <span class="quick" data-q="极简">极简</span>
+      <span class="quick" data-q="天空">天空</span>
+      <span class="quick" data-q="建筑">建筑</span>
+      <span class="quick" data-q="产品">产品</span>
+      <span class="quick" data-q="星空">星空</span>
+      <span class="quick" data-q="自然">自然</span>
+    </div>
+  </div>
+</div>
+
+<div id="status">跨 Unsplash、Pexels 等免费图库并行检索。遇到喜欢的，点 ❤ 收进你的影集。</div>
+<div class="grid reveal" id="grid"></div>
+<button id="more" class="more" style="display:none">加载更多</button>
+
+<footer>
+  <div class="foot">
+    <div class="brand"><div class="logo">PicSeek</div></div>
+    <div>PicSeek · 汇聚全球免费影像　|　图片版权归原作者与摄影师所有</div>
+  </div>
+</footer>
+
+<div class="toast" id="toast"></div>
+
+<script src="common.js"></script>
+<script>
+const grid=document.getElementById('grid');
+const statusEl=document.getElementById('status');
+const moreBtn=document.getElementById('more');
+const cfg={...DEFAULT_CFG};
+let pages={}, curQuery='', results=[], loading=false;
+
+function searchSources(){ return Object.keys(SOURCES).filter(n=>cfg.sources[n] && SOURCES[n].search); }
+
+// 渲染来源开关
+function renderSourceChips(){
+  const chips=Object.keys(SOURCES).map(n=>{
+    const on=cfg.sources[n]?' on':''; const tag=SOURCES[n].search?'':'（氛围）';
+    return `<span class="chip${on}" data-source="${n}">${SOURCES[n].label}${tag}</span>`;
+  }).join('');
+  document.getElementById('srcGroup').innerHTML=chips;
+}
+
+async function search(q, reset){
+  curQuery=q;
+  if(reset){ results=[]; Object.keys(SOURCES).forEach(s=>pages[s]=1); }
+  const srcs=searchSources();
+  if(srcs.length===0){ statusEl.innerHTML='请至少开启一个图源'; grid.innerHTML=''; moreBtn.style.display='none'; return; }
+  loading=true; moreBtn.style.display='none';
+  statusEl.innerHTML='<div class="spinner"></div>';
+  try{
+    const tasks=srcs.map(s=>fetchSource(s, q, pages[s]||1, 15, cfg.orient));
+    const outs=await Promise.allSettled(tasks);
+    let got=[];
+    outs.forEach(o=>{ if(o.status==='fulfilled') got=got.concat(o.value); });
+    const seen=new Set(results.map(p=>p.source+':'+p.id));
+    got=got.filter(p=>{const k=p.source+':'+p.id; if(seen.has(k))return false; seen.add(k); return true;});
+    results=results.concat(got);
+    if(results.length===0){
+      statusEl.innerHTML='<h3 style="font-size:18px;color:var(--ink)">没找到相关影像</h3><p>换个说法，或在上方开启更多图源再试试。</p>';
+      grid.innerHTML=''; moreBtn.style.display='none';
+    } else {
+      renderGrid(grid, results);
+      statusEl.textContent=`共 ${results.length} 张 · 来自 ${srcs.map(s=>SOURCES[s].label).join(' / ')}`;
+      moreBtn.style.display='block';
+    }
+  }catch(e){ toast('出错了：'+e.message); }
+  finally{ loading=false; }
+}
+
+// 事件
+document.getElementById('go').onclick=()=>{const q=document.getElementById('q').value.trim(); if(q) search(q,true);};
+document.getElementById('q').addEventListener('keydown',e=>{if(e.key==='Enter')document.getElementById('go').click();});
+moreBtn.onclick=()=>{ if(loading)return; searchSources().forEach(s=>pages[s]=(pages[s]||1)+1); search(curQuery,false); };
+document.querySelectorAll('[data-orient]').forEach(c=>c.onclick=()=>{
+  document.querySelectorAll('[data-orient]').forEach(x=>x.classList.remove('on'));
+  c.classList.add('on'); cfg.orient=c.dataset.orient; if(curQuery) search(curQuery,true);
+});
+document.getElementById('srcGroup').addEventListener('click',e=>{
+  const c=e.target.closest('[data-source]'); if(!c) return;
+  const n=c.dataset.source; cfg.sources[n]=!cfg.sources[n]; renderSourceChips();
+  if(curQuery) search(curQuery,true);
+});
+
+document.querySelectorAll('.quick').forEach(q=>q.onclick=()=>{
+  document.getElementById('q').value=q.dataset.q;
+  search(q.dataset.q,true);
+});
+
+renderSourceChips();
+// 直接进入带 ?q= 时自动搜
+const uq=new URLSearchParams(location.search).get('q');
+if(uq){ document.getElementById('q').value=uq; search(uq,true); }
+else { statusEl.innerHTML='跨 Unsplash、Pexels 等免费图库并行检索。输入关键词开始，遇到喜欢的，点 ❤ 收进影集。'; }
+</script>
+</body>
+</html>

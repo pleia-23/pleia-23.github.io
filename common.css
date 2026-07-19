@@ -1,0 +1,312 @@
+/* ===== 图觅 PicSeek 全站通用样式 · 暖色品牌 C 风 + 亮黄品牌色 ===== */
+:root{
+  --bg:#FBF6EE;          /* 暖纸色底 */
+  --surface:#FFFDF9;     /* 卡片表面 */
+  --ink:#211E1A;         /* 近黑暖墨 */
+  --muted:#8A8175;       /* 次要文字 */
+  --border:#ECE3D6;      /* 描边 */
+  --yellow:#FFD400;      /* 品牌亮黄 */
+  --terra:#E07856;       /* 陶土橙点缀 */
+  --terra-d:#C75F3E;
+  --shadow:0 8px 26px rgba(40,30,20,.09);
+  --font-head:Georgia,"Songti SC","Noto Serif SC",serif;
+  --header-h:64px;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{background:var(--bg);color:var(--ink);
+  font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif;
+  -webkit-font-smoothing:antialiased;line-height:1.65}
+a{color:inherit;text-decoration:none}
+img{display:block;max-width:100%}
+h1,h2,.logo,.a-title,.b-title,.foot .logo{font-family:var(--font-head)}
+button:active{transform:translateY(1px)}
+:focus-visible{outline:2px solid var(--terra);outline-offset:2px}
+.wrap{max-width:1080px;margin:0 auto;padding:0 18px}
+
+/* ---- 按钮 ---- */
+button{font-family:inherit;cursor:pointer;border:none;border-radius:12px;font-size:14px;
+  padding:11px 18px;background:var(--terra);color:#fff;transition:.15s;font-weight:600}
+button:hover{background:var(--terra-d)}
+button.ghost{background:transparent;color:var(--ink);border:1.5px solid var(--border);font-weight:500}
+button.ghost:hover{border-color:var(--ink);background:#fff}
+button:disabled{opacity:.5;cursor:default}
+
+/* ---- 顶部导航 ---- */
+header{position:sticky;top:0;z-index:30;background:rgba(251,246,238,.92);
+  backdrop-filter:saturate(180%) blur(12px);border-bottom:1px solid var(--border)}
+.bar{display:flex;align-items:center;gap:18px;padding:11px 18px;max-width:1080px;margin:0 auto}
+.brand{display:flex;align-items:center;gap:10px;cursor:pointer}
+.logo{color:var(--terra);font-weight:800;font-size:20px;letter-spacing:-.5px;
+  padding:0;background:transparent;font-family:inherit;white-space:nowrap}
+.logo::after{content:"";display:inline-block;width:5px;height:5px;border-radius:50%;background:var(--terra);margin-left:4px;vertical-align:middle}
+.tagline{font-size:12px;color:var(--muted)}
+nav{margin-left:auto;display:flex;gap:4px;align-items:center}
+.navlink{font-size:14px;color:var(--muted);padding:8px 14px;border-radius:999px;white-space:nowrap;transition:.15s}
+.navlink:hover{color:var(--ink);background:#fff}
+.navlink.on{color:var(--ink);background:#fff;font-weight:600}
+.more{display:none}
+
+/* ---- 搜索框 ---- */
+.searchbar{display:flex;gap:10px;max-width:1080px;margin:0 auto;padding:24px 18px 8px}
+.searchbar input{flex:1;border:1.5px solid var(--border);border-radius:14px;padding:14px 18px;background:#fff}
+.searchbar input:focus{border-color:var(--terra)}
+
+/* ---- 区块标题 ---- */
+.section{max-width:1080px;margin:0 auto;padding:34px 18px 0}
+.section h2{font-size:22px;font-weight:700;letter-spacing:.3px}
+.section .sub{color:var(--muted);font-size:13px;margin-top:4px}
+.section-head{display:flex;align-items:flex-end;justify-content:space-between;gap:12px;flex-wrap:wrap}
+.link-more{font-size:13px;color:var(--terra);font-weight:600}
+
+/* ---- 图片网格（搜索 / 影集 / 风光照 通用） ---- */
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(190px,1fr));gap:14px;
+  max-width:1080px;margin:16px auto 0;padding:0 18px 10px}
+.pcard{position:relative;aspect-ratio:3/4;border-radius:16px;overflow:hidden;background:var(--surface);
+  box-shadow:var(--shadow);cursor:pointer}
+.pcard img{width:100%;height:100%;object-fit:cover;transition:.3s}
+.pcard:hover img{transform:scale(1.04)}
+.pcard .ph{position:absolute;left:0;right:0;bottom:0;padding:26px 12px 10px;
+  background:linear-gradient(transparent,rgba(0,0,0,.6));color:#fff;font-size:11px;opacity:0;transition:.2s}
+.pcard:hover .ph{opacity:1}
+.pcard .ph a{color:#fff;text-decoration:underline}
+.pcard .like{position:absolute;top:8px;right:8px;width:34px;height:34px;border-radius:50%;
+  background:rgba(255,255,255,.85);border:none;color:#bbb;font-size:16px;padding:0;line-height:34px;text-align:center}
+.pcard .like.on{color:var(--terra);background:#fff}
+.pcard .tag{position:absolute;top:8px;left:8px;background:rgba(33,30,26,.7);color:#fff;font-size:10px;
+  padding:3px 8px;border-radius:999px}
+
+/* ---- 详情弹窗（通用）---- */
+.mask{position:fixed;inset:0;background:rgba(20,16,12,.5);display:none;align-items:center;
+  justify-content:center;z-index:60;padding:18px}
+.mask.show{display:flex}
+.modal{background:var(--surface);border-radius:16px;max-width:480px;width:100%;padding:22px;max-height:88vh;overflow:auto}
+.modal h3{font-size:17px;margin-bottom:12px}
+.detail-img{width:100%;border-radius:14px;margin-bottom:12px}
+.toast{position:fixed;bottom:26px;left:50%;transform:translateX(-50%);background:var(--ink);color:#fff;
+  padding:11px 20px;border-radius:999px;font-size:13px;opacity:0;transition:.25s;z-index:90;pointer-events:none}
+.toast.show{opacity:1}
+.close{float:right;cursor:pointer;color:var(--muted);font-size:22px;line-height:1}
+
+/* ---- 空状态 / 加载 ---- */
+.empty{max-width:520px;margin:70px auto;text-align:center;color:var(--muted)}
+.empty h3{font-size:18px;color:var(--ink);margin-bottom:8px}
+.spinner{width:26px;height:26px;border:3px solid var(--border);border-top-color:var(--terra);
+  border-radius:50%;animation:spin .8s linear infinite;margin:28px auto}
+@keyframes spin{to{transform:rotate(360deg)}}
+
+/* ---- 页脚 ---- */
+footer{margin-top:50px;border-top:1px solid var(--border);background:var(--surface)}
+.foot{max-width:1080px;margin:0 auto;padding:26px 18px;display:flex;justify-content:space-between;
+  align-items:center;gap:14px;flex-wrap:wrap;color:var(--muted);font-size:13px}
+.foot .logo{font-size:15px}
+
+/* ---- A版色卡：黑底压图+标题+竖排色块（首页/色彩页入口）---- */
+.a-card{background:#0b0b0c;border-radius:16px;overflow:hidden;color:#f0f0f0;position:relative;
+  min-height:340px;cursor:pointer;box-shadow:var(--shadow);transition:.2s}
+.a-card:hover{transform:translateY(-3px);box-shadow:0 14px 34px rgba(0,0,0,.18)}
+.a-card .a-img{position:absolute;inset:0;opacity:.55}
+.a-card .a-img img{width:100%;height:100%;object-fit:cover}
+.a-card .a-overlay{position:absolute;inset:0;padding:28px 24px;display:flex;flex-direction:column;justify-content:space-between}
+.a-card .a-title{font-size:28px;font-weight:700;letter-spacing:1px;line-height:1.2}
+.a-card .a-sub{font-size:11px;color:#9a9a9a;text-transform:uppercase;letter-spacing:2px;margin-top:8px}
+.a-card .a-info{font-size:11px;color:#888;line-height:1.6}
+.a-card .a-sws{display:flex;flex-direction:column;gap:8px;align-items:flex-end}
+.a-card .a-sw{display:flex;align-items:center;gap:8px;padding:3px 5px;border-radius:6px;transition:.15s}
+.a-card .a-sw:hover{background:rgba(255,255,255,.08)}
+.a-card .a-dot{width:26px;height:26px;border-radius:6px;border:1px solid rgba(255,255,255,.18)}
+.a-card .a-hex{font-size:11px;font-family:SFMono-Regular,Menlo,monospace;color:#bbb;letter-spacing:.5px}
+.a-card .a-name{font-size:10px;color:#6a6a6a}
+/* 双色相映：主色 / 搭配 小标签 */
+.a-card .a-role{display:inline-block;margin-top:3px;padding:1px 6px;border-radius:999px;font-size:8px;
+  letter-spacing:1px;line-height:1.4;color:#d8d2c8;background:rgba(255,255,255,.10);border:1px solid rgba(255,255,255,.16)}
+
+/* ---- B版详情：白底卡片+图+标签+横排可点击色块 ---- */
+.b-detail{background:var(--surface);border-radius:16px;overflow:hidden;border:1px solid var(--border);box-shadow:0 2px 20px rgba(0,0,0,.06);max-width:560px}
+.b-detail .b-img{width:100%;aspect-ratio:4/3;overflow:hidden;background:#f5f5f5;cursor:pointer}
+.b-detail .b-img img{width:100%;height:100%;object-fit:cover}
+.b-detail .b-body{padding:18px 20px 22px}
+.b-detail .b-title{font-size:20px;font-weight:700;letter-spacing:.5px;margin-bottom:2px}
+.b-detail .b-sub{font-size:12px;color:var(--muted);text-transform:uppercase;letter-spacing:1.5px;margin-bottom:12px}
+.b-detail .b-tags{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:14px}
+.b-detail .b-tag{padding:4px 11px;border-radius:999px;font-size:11px;border:1px solid var(--border);color:var(--muted);cursor:pointer;transition:.15s;background:#fff}
+.b-detail .b-tag:hover{background:var(--ink);color:#fff;border-color:var(--ink)}
+.b-detail .b-sws{display:flex;gap:8px;flex-wrap:wrap}
+.b-detail .b-sw{display:flex;flex-direction:column;align-items:center;gap:5px;flex:1;min-width:64px;cursor:pointer;padding:6px 4px;border-radius:10px;transition:.15s;background:#fff;border:1px solid transparent}
+.b-detail .b-sw:hover{background:#f5f5f5;transform:translateY(-2px);border-color:var(--border)}
+.b-detail .b-dot{width:100%;height:44px;border-radius:10px;border:1px solid rgba(0,0,0,.06)}
+.b-detail .b-hex{font-size:11px;font-family:SFMono-Regular,Menlo,monospace;color:var(--muted)}
+.b-detail .b-name{font-size:10px;color:#aaa}
+
+/* ---- 参考图式竖向色卡：色块 + 编号 + 中文名 + hex ---- */
+.color-cards{display:flex;gap:14px;flex-wrap:wrap}
+.color-card{background:var(--surface);border:1px solid var(--border);border-radius:14px;overflow:hidden;width:110px;box-shadow:0 2px 10px rgba(0,0,0,.05);cursor:pointer;transition:.15s}
+.color-card:hover{transform:translateY(-3px);box-shadow:var(--shadow)}
+.color-card-swatch{height:90px;width:100%}
+.color-card-meta{padding:10px 12px 12px;text-align:center}
+.color-card-code{font-size:9px;letter-spacing:1.5px;color:var(--muted);text-transform:uppercase;margin-bottom:4px}
+.color-card-name{font-size:14px;font-weight:600;color:var(--ink);margin-bottom:2px}
+.color-card-hex{font-size:11px;font-family:SFMono-Regular,Menlo,monospace;color:var(--terra)}
+
+/* ---- 色彩页横向大卡片（参考图：左图 + 标题 + 右下色卡）---- */
+.color-slide{background:var(--surface);border:1px solid var(--border);border-radius:16px;overflow:hidden;box-shadow:var(--shadow);display:grid;grid-template-columns:1.1fr 1fr;min-height:320px;cursor:pointer;transition:.2s}
+.color-slide:hover{transform:translateY(-3px);box-shadow:0 14px 34px rgba(40,30,20,.12)}
+.color-slide .cs-img{aspect-ratio:4/3;overflow:hidden}
+.color-slide .cs-img img{width:100%;height:100%;object-fit:cover}
+.color-slide .cs-body{padding:26px;display:flex;flex-direction:column;justify-content:space-between}
+.color-slide .cs-sub{font-size:11px;letter-spacing:2px;color:var(--muted);text-transform:uppercase}
+.color-slide .cs-title{font-family:var(--font-head);font-size:clamp(22px,3vw,30px);font-weight:700;margin-top:8px;line-height:1.2}
+.color-slide .cs-info{font-size:12px;color:var(--muted);margin-top:8px}
+.color-slide .cs-sws{display:flex;gap:10px;flex-wrap:wrap;margin-top:20px}
+@media(max-width:720px){.color-slide{grid-template-columns:1fr}.color-slide .cs-img{aspect-ratio:16/9}}
+
+.color-modal .modal{max-width:580px;padding:0;background:transparent;box-shadow:none}
+
+/* ---- 首页栏目 bento（非对称，消三等分 AI 味） ---- */
+.bento{display:grid;grid-template-columns:1.3fr 1fr;grid-auto-rows:200px;gap:16px;margin-top:16px}
+.bento-card{position:relative;border-radius:16px;overflow:hidden;background:var(--surface);border:1px solid var(--border);box-shadow:var(--shadow);display:block;color:var(--ink);transition:.2s}
+.bento-card:hover{transform:translateY(-3px);box-shadow:0 14px 34px rgba(40,30,20,.16)}
+.bento-card.tall{grid-row:span 2}
+.bento-card .bc-bg{position:absolute;inset:0}
+.bento-card .bc-bg img{width:100%;height:100%;object-fit:cover;background:#e8e0d4}
+.bento-card .bc-grad{position:absolute;inset:0;background:linear-gradient(135deg,#E07856 0%,#F8D26A 100%)}
+.bento-card .bc-shade{position:absolute;inset:0;background:linear-gradient(transparent,rgba(0,0,0,.55))}
+.bento-card .bc-label{position:absolute;left:18px;right:18px;bottom:16px;z-index:2;color:#fff}
+.bento-card .bc-t{font-family:var(--font-head);font-size:22px;font-weight:700}
+.bento-card .bc-d{font-size:12px;color:rgba(255,255,255,.92);margin-top:3px;line-height:1.5;text-shadow:0 1px 3px rgba(0,0,0,.45)}
+@media(max-width:600px){.bento{grid-template-columns:1fr;grid-auto-rows:170px}.bento-card.tall{grid-row:auto}}
+
+/* ---- 艺术感：纸纹颗粒 + 入场动效 + 编辑式小标题 ---- */
+/* 极淡纸纹，给暖底一层"艺术微喷"的质感（仅在 JS 开启时，避免无脚本时挡内容） */
+html.js body::before{content:"";position:fixed;inset:0;z-index:1;pointer-events:none;
+  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  opacity:.045;mix-blend-mode:multiply}
+html.js body>*{position:relative;z-index:2}
+
+/* 入场动效：滚动进入视野才浮现，柔和不抢戏 */
+.js .reveal{opacity:0;transform:translateY(20px);
+  transition:opacity .8s cubic-bezier(.2,.7,.2,1),transform .8s cubic-bezier(.2,.7,.2,1)}
+.js .reveal.in{opacity:1;transform:none}
+
+/* 编辑式小标题（eyebrow）：衬线、大写、加宽字距，制造"杂志感" */
+.eyebrow{font-family:var(--font-head);font-size:12px;letter-spacing:3px;text-transform:uppercase;
+  color:var(--terra);font-weight:600;margin-bottom:10px;display:inline-flex;flex-direction:column;gap:2px}
+.eyebrow.line{position:relative;padding-left:34px}
+.eyebrow.line::before{content:"";position:absolute;left:0;top:50%;width:26px;height:1px;background:var(--terra);opacity:.6}
+.eyebrow-en{font-size:10px;letter-spacing:2px;font-weight:500;opacity:.75}
+.eyebrow-cn{font-size:12px;letter-spacing:3px;font-weight:600}
+
+/* 首屏大标题：编辑式展示字，更舒展 */
+.hero-title{font-family:var(--font-head);font-weight:700;
+  font-size:clamp(28px,4.6vw,46px);line-height:1.16;letter-spacing:.3px;color:var(--ink)}
+.hero-lead{color:var(--muted);margin-top:16px;font-size:15px;line-height:1.85;max-width:30em}
+
+/* 区块标题更精致 */
+.section h2{font-weight:700;letter-spacing:.4px}
+.section .sub{color:var(--muted);font-size:13px;margin-top:6px;line-height:1.7}
+
+@media(prefers-reduced-motion:reduce){
+  .js .reveal{opacity:1!important;transform:none!important;transition:none}
+}
+
+/* ---- 手机适配（≤600px 整套）---- */
+@media(max-width:600px){
+  .wrap{padding:0 14px}
+  .bar{gap:10px;padding:10px 12px}
+  .tagline{display:none}
+  nav{gap:0}
+  .navlink{padding:7px 9px;font-size:13px}
+  .searchbar{padding:18px 14px 6px}
+  .searchbar input{padding:13px 14px}
+  .searchbar button{padding:13px 16px}
+  .section{padding:24px 14px 0}
+  .section h2{font-size:19px}
+  .grid{grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:10px;padding:0 14px}
+  .foot{padding:22px 14px;font-size:12px}
+  /* 首页首屏：手机保持左右两栏，只把两侧收窄一点 */
+  .home-hero{grid-template-columns:1.05fr .95fr !important;gap:16px !important}
+  .home-hero .hero-title{font-size:clamp(22px,5.4vw,30px) !important}
+  .home-hero .hero-lead{font-size:13px;line-height:1.75;margin-top:10px}
+  .home-hero button{padding:10px 14px !important;font-size:13px !important}
+  /* 首页首屏里的今日配色卡片：收窄适配 */
+  .home-hero .a-card{min-height:260px !important}
+  .home-hero .a-card .a-overlay{padding:14px 12px !important}
+  .home-hero .a-card .a-title{font-size:17px !important;letter-spacing:.5px}
+  .home-hero .a-card .a-sub{font-size:9px !important;letter-spacing:1px;margin-top:4px}
+  .home-hero .a-card .a-info{font-size:9px !important}
+  .home-hero .a-card .a-sws{gap:4px !important}
+  .home-hero .a-card .a-sw{gap:4px !important;padding:2px 3px !important}
+  .home-hero .a-card .a-dot{width:18px !important;height:18px !important;border-radius:4px !important}
+  .home-hero .a-card .a-hex{font-size:9px !important}
+  .home-hero .a-card .a-name{font-size:8px !important}
+  .home-hero .a-card .a-role{font-size:7px !important;padding:1px 4px !important;margin-top:2px !important}
+  /* 色彩页「搭配颜色」：去掉 300px 最小宽，手机整行一张 */
+  .a-grid{grid-template-columns:1fr !important;gap:14px !important;padding:0 14px !important}
+  /* 色彩页 tab 可横滑，避免挤 */
+  .tabs{overflow-x:auto !important;flex-wrap:nowrap !important;padding:0 14px !important;-webkit-overflow-scrolling:touch;scrollbar-width:none}
+  .tabs::-webkit-scrollbar{display:none}
+  .tabs .tab{flex:0 0 auto !important;white-space:nowrap}
+  .color-hint,.mtags,#masterStatus{padding:0 14px !important}
+  /* A 卡标题/留白在手机上收一点 */
+  .a-card .a-title{font-size:22px !important}
+  .a-card .a-overlay{padding:20px 16px !important}
+  .a-card .a-sub{letter-spacing:1px}
+  /* 影集卡片 */
+  .album-list{padding:0 14px}
+  .album-card{grid-template-columns:92px 1fr !important;gap:14px !important;padding:14px !important}
+  .album-cover{width:92px !important;height:92px !important}
+  /* 详情弹窗 */
+  .mask{padding:14px}
+  .modal{padding:18px}
+  .b-detail .b-body{padding:16px 15px 20px !important}
+  .b-detail .b-dot{height:38px !important}
+  /* 参考色卡：手机上 3 个一排 */
+  .color-cards{gap:10px}
+  .color-card{width:100px}
+  .color-card-swatch{height:80px}
+  /* 常用颜色面板 */
+  .common-list,.common-panel{padding:14px}
+  /* 首屏文案 */
+  .hero-lead{font-size:14px}
+  .empty{margin:50px auto}
+}
+@media(max-width:380px){
+  .wrap,.section,.searchbar,.grid,.a-grid,.album-list,.color-hint,.mtags,#masterStatus,.foot,.tabs{padding-left:11px !important;padding-right:11px !important}
+  .a-card .a-title{font-size:20px !important}
+  .navlink{padding:6px 7px;font-size:12px}
+  .album-card{grid-template-columns:80px 1fr !important}
+  .album-cover{width:80px !important;height:80px !important}
+  /* 超小屏下首页首屏再收紧一点 */
+  .home-hero{gap:12px !important}
+  .home-hero .hero-title{font-size:clamp(20px,5.2vw,26px) !important}
+  .home-hero .hero-lead{font-size:12px}
+  .home-hero button{padding:9px 11px !important;font-size:12px !important}
+  .home-hero .a-card{min-height:220px !important}
+  .home-hero .a-card .a-title{font-size:15px !important}
+  .home-hero .a-card .a-overlay{padding:12px 10px !important}
+  .home-hero .a-card .a-sub{font-size:8px !important}
+  .home-hero .a-card .a-info{font-size:8px !important}
+  .home-hero .a-card .a-sws{gap:3px !important}
+  .home-hero .a-card .a-dot{width:16px !important;height:16px !important}
+  .home-hero .a-card .a-hex,.home-hero .a-card .a-name{font-size:8px !important}
+}
+
+/* ---- 影集层叠卡片（参考图：封面图 + 背后堆叠小图）---- */
+.album-list{max-width:680px;margin:28px auto;padding:0 18px;display:flex;flex-direction:column;gap:22px}
+.album-card{display:grid;grid-template-columns:120px 1fr;gap:18px;align-items:center;background:var(--surface);border:1px solid var(--border);border-radius:16px;padding:18px;box-shadow:var(--shadow);cursor:pointer;transition:.2s}
+.album-card:hover{transform:translateY(-2px);box-shadow:0 14px 34px rgba(40,30,20,.12)}
+.album-cover{width:120px;height:120px;position:relative}
+.album-cover img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;border-radius:12px;box-shadow:0 4px 14px rgba(0,0,0,.14)}
+.album-cover .stack1{inset:10px -8px -8px 10px;z-index:-1;transform:scale(.92);opacity:.55;border-radius:12px}
+.album-cover .stack2{inset:20px -16px -16px 20px;z-index:-2;transform:scale(.84);opacity:.32;border-radius:12px}
+.album-meta{display:flex;flex-direction:column;gap:6px}
+.album-title{font-size:18px;font-weight:700}
+.album-row{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.album-tag{display:inline-flex;align-items:center;gap:4px;font-size:11px;color:var(--muted)}
+.album-tag::before{content:"";width:6px;height:6px;border-radius:50%;background:var(--terra)}
+.album-count{font-size:13px;color:var(--muted)}
+
+/* ---- 换一批按钮优化 ---- */
+.refresh-btn{display:inline-flex;align-items:center;gap:8px;background:#fff;border:1.5px solid var(--border);color:var(--ink);border-radius:999px;padding:9px 18px;font-size:13px;font-weight:600;cursor:pointer;transition:.15s}
+.refresh-btn:hover{border-color:var(--terra);color:var(--terra);background:var(--surface)}
+.refresh-btn svg{width:16px;height:16px;transition:.3s}
+.refresh-btn:hover svg{transform:rotate(180deg)}

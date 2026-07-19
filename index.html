@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>PicSeek · 全球免费影像灵感库</title>
+<link rel="stylesheet" href="common.css" />
+</head>
+<body>
+<header>
+  <div class="bar">
+    <div class="brand" onclick="location.href='index.html'">
+      <div class="logo">PicSeek</div>
+      <span class="tagline">全球免费影像 · 一站搜罗</span>
+    </div>
+    <nav>
+      <a class="navlink" href="search.html">图片</a>
+      <a class="navlink" href="color.html">色彩</a>
+      <a class="navlink" href="album.html">影集</a>
+    </nav>
+  </div>
+</header>
+
+<!-- 首屏 -->
+<section class="wrap" style="padding-top:34px">
+  <div class="home-hero" style="display:grid;grid-template-columns:1.1fr .9fr;gap:30px;align-items:stretch">
+    <div style="display:flex;flex-direction:column;justify-content:center">
+      <div class="eyebrow line"><span class="eyebrow-cn">影像灵感库</span><span class="eyebrow-en">PICSEEK</span></div>
+      <h1 class="hero-title">搜一张图，<br/>也搜一种氛围。</h1>
+      <p class="hero-lead">
+        PicSeek 把 Unsplash、Pexels 等免费图库的影像汇于一处，
+        并为每张照片读懂它的色彩与风格——不止于找图，更在于找感觉。
+      </p>
+      <div style="margin-top:26px;display:flex;gap:10px;flex-wrap:wrap">
+        <button onclick="location.href='search.html'">开始搜图 →</button>
+        <button class="ghost" onclick="location.href='color.html'">逛逛色彩</button>
+      </div>
+    </div>
+    <!-- 今日推荐配色 -->
+    <div>
+      <div class="eyebrow line"><span class="eyebrow-cn">今日配色</span><span class="eyebrow-en">DAILY PALETTE</span></div>
+      <div id="dailyCard" style="margin-top:12px"></div>
+    </div>
+  </div>
+</section>
+
+<!-- 三种打开方式（非对称 bento） -->
+<section class="section reveal">
+  <div class="section-head"><div>
+    <div class="eyebrow line">WAYS TO EXPLORE</div>
+    <h2>三种打开方式</h2>
+    <div class="sub">图片 · 色彩 · 影集，串起你的视觉工作流</div>
+  </div></div>
+  <div class="bento">
+    <a class="bento-card tall" href="search.html">
+      <div class="bc-bg" id="bImage"><img src="" alt="精选图"/></div>
+      <div class="bc-shade"></div>
+      <div class="bc-label"><div class="bc-t">图片</div><div class="bc-d">跨多个图库一键搜图，每张都附上摄影师的署名与出处。</div></div>
+    </a>
+    <a class="bento-card" href="color.html">
+      <div class="bc-grad"></div>
+      <div class="bc-shade"></div>
+      <div class="bc-label"><div class="bc-t">色彩</div><div class="bc-d">按颜色挑图、看配套配色、读懂大师风格。</div></div>
+    </a>
+    <a class="bento-card" href="album.html">
+      <div class="bc-bg" id="bAlbum"><img src="" alt="收藏图"/></div>
+      <div class="bc-shade"></div>
+      <div class="bc-label"><div class="bc-t">影集</div><div class="bc-d">收藏心动的影像，它会自动按风景、天空、建筑……为你归好类。</div></div>
+    </a>
+  </div>
+</section>
+
+<!-- 今天的风景 -->
+<section class="section reveal">
+  <div class="section-head">
+    <div>
+      <div class="eyebrow line">NATURE TODAY</div>
+      <h2>今天的风景</h2>
+      <div class="sub">从自然影像里，挑出的几帧</div>
+    </div>
+    <a class="link-more" href="search.html">更多 →</a>
+  </div>
+  <div class="grid" id="natureGrid" style="margin-top:14px">
+    <div class="spinner"></div>
+  </div>
+</section>
+
+<footer class="reveal">
+  <div class="foot">
+    <div class="brand"><div class="logo">PicSeek</div></div>
+    <div>PicSeek · 汇聚全球免费影像　|　图片版权归原作者与摄影师所有</div>
+  </div>
+</footer>
+
+<div class="toast" id="toast"></div>
+
+<script src="common.js"></script>
+<script>
+// 统一加载：拉完 photos.json 后补全色对象（hsl/rgb/lab/name），避免重复解析大文件
+async function loadPhotos(){
+  const j=await loadPhotosData();
+  const list=j.results||[];
+  if(typeof normalizePhotos==='function') normalizePhotos(list);
+  return list;
+}
+// ===== 今日推荐配色：从 photos.json 挑一张和谐度高的图，用 A 版色卡展示 =====
+const _HOME_CARD={};
+(async function(){
+  const wrap=document.getElementById('dailyCard');
+  try{
+    const raw=await loadPhotos();
+    // 抽样 200 张即可定位高和谐度配色，避免全量扫描 850 张造成卡顿
+    const pool = raw.length>200 ? raw.slice().sort(()=>Math.random()-0.5).slice(0,200) : raw;
+    let best=null;
+    for(const p of pool){
+      let cols = (p.colors && p.colors.length>=2) ? p.colors : null;
+      if(!cols){ const img=await loadImage(p.thumb||p.full); if(!img) continue; cols=buildPalette(img); }
+      if(cols.length<2) continue;
+      const {score}=harmonyScore(cols);
+      if(!best || score>best.score){ best={cols,score,p}; }
+      if(score>=82) break;
+    }
+    if(best){
+      const styles=matchStyles(best.cols);
+      _HOME_CARD[best.p.id]={ph:best.p, colors:best.cols, styles};
+      wrap.innerHTML=renderACardHTML(best.p, best.cols, {
+        title:paletteTitle(best.cols, styles, best.p), sub:'TODAY’S PALETTE', info:`Photo by ${best.p.photographer||'未知'} · 和谐度 ${best.score}`});
+      bindACards(wrap, _HOME_CARD);
+    } else {
+      wrap.innerHTML='<div style="padding:20px;color:var(--muted)">今日配色稍后加载…</div>';
+    }
+  }catch(e){
+    wrap.innerHTML='<div style="padding:20px;color:var(--muted)">今日配色稍后加载…</div>';
+  }
+})();
+
+// ===== 今日风光照：每次进入随机洗牌，呈现不同的一组 =====
+(async function(){
+  const grid=document.getElementById('natureGrid');
+  try{
+    let raw=await loadPhotos();
+    raw=raw.sort(()=>Math.random()-0.5); // 随机洗牌
+    const pick=raw.slice(0,10);
+    NATURE = pick;
+    renderGrid(grid, pick);
+    // 填充 bento 栏目卡（用真实精选图，每次随机取不同的一张）
+    const bi=document.querySelector('#bImage img'); if(bi&&raw[1]) bi.src=raw[1].thumb||raw[1].full;
+    const ba=document.querySelector('#bAlbum img'); if(ba&&raw[4]) ba.src=raw[4].thumb||raw[4].full;
+  }catch(e){ grid.innerHTML='<div class="empty"><h3>风光照加载失败</h3><p>请稍后刷新</p></div>'; }
+})();
+
+// 卡片点击 → 详情弹窗（含收藏）使用 common.js 的 renderGrid / openDetail
+</script>
+</body>
+</html>

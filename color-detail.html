@@ -1,0 +1,161 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>PicSeek · 配色故事</title>
+<link rel="stylesheet" href="common.css" />
+<style>
+  .cd-hero{display:grid;grid-template-columns:1.1fr .9fr;gap:26px;align-items:center;margin-top:18px}
+  .cd-img{border-radius:16px;overflow:hidden;aspect-ratio:4/3;background:var(--surface);box-shadow:var(--shadow)}
+  .cd-img img{width:100%;height:100%;object-fit:cover}
+  .cd-title{font-family:var(--font-head);font-size:clamp(26px,4vw,38px);font-weight:700;line-height:1.15;margin:8px 0 10px;letter-spacing:.3px}
+  .cd-by{font-size:13px;color:var(--muted)}
+  .cd-by a{color:var(--terra)}
+  .cd-tags{display:flex;gap:6px;flex-wrap:wrap;margin-top:12px}
+  .cd-tags .b-tag{padding:4px 11px;border-radius:999px;font-size:11px;border:1px solid var(--border);color:var(--muted);background:#fff}
+  .cd-palette{margin-top:18px}
+  .cd-block{margin-top:48px}
+  .cd-h2{font-size:20px;font-weight:700;margin:6px 0 16px;letter-spacing:.3px}
+  .cd-sub{font-size:12px;color:var(--muted);margin-bottom:10px}
+  .back{display:inline-block;margin:14px 0 0;font-size:13px;color:var(--terra);font-weight:600}
+  @media(max-width:700px){.cd-hero{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+<header>
+  <div class="bar">
+    <div class="brand" onclick="location.href='index.html'">
+      <div class="logo">PicSeek</div>
+      <span class="tagline">全球免费影像 · 一站搜罗</span>
+    </div>
+    <nav>
+      <a class="navlink" href="search.html">图片</a>
+      <a class="navlink" href="color.html">色彩</a>
+      <a class="navlink" href="album.html">影集</a>
+    </nav>
+  </div>
+</header>
+
+<main class="wrap">
+  <a class="back" href="color.html">← 返回色彩</a>
+
+  <!-- B 详情：图 + 标题 + 风格标签 + 色卡 -->
+  <section class="cd-hero">
+    <div class="cd-img"><img id="dBig" alt=""/></div>
+    <div class="cd-cap">
+      <div class="eyebrow line">COLOR STORY</div>
+      <h1 class="cd-title" id="dTitle">…</h1>
+      <div class="cd-by" id="dBy"></div>
+      <div class="cd-tags" id="dTags"></div>
+      <div class="cd-palette" id="dPalette"></div>
+    </div>
+  </section>
+
+  <!-- 配套颜色 -->
+  <section class="cd-block reveal">
+    <div class="eyebrow line">PAIRS · 配套颜色</div>
+    <h2 class="cd-h2">更多可参考的搭配</h2>
+    <div class="cd-sub">点任意一块，去搜同色调的影像</div>
+    <div id="dComp"></div>
+  </section>
+
+  <!-- 同风格影像 -->
+  <section class="cd-block reveal">
+    <div class="eyebrow line">SIMILAR · 同风格影像</div>
+    <h2 class="cd-h2">同色调 / 同风格的更多影像</h2>
+    <div class="grid reveal" id="dSimilar"></div>
+  </section>
+</main>
+
+<footer>
+  <div class="foot">
+    <div class="brand"><div class="logo">PicSeek</div></div>
+    <div>PicSeek · 汇聚全球免费影像　|　图片版权归原作者与摄影师所有</div>
+  </div>
+</footer>
+
+<div class="toast" id="toast"></div>
+
+<script src="style-tags.js"></script>
+<script src="common.js"></script>
+<script>
+// 统一加载：拉完 photos.json 后补全色对象（hsl/rgb/lab/name）
+async function loadPhotos(){
+  const j=await loadPhotosData();
+  const list=j.results||[];
+  if(typeof normalizePhotos==='function') normalizePhotos(list);
+  return list;
+}
+const id=new URLSearchParams(location.search).get('id');
+const sw=sessionStorage.getItem('picseek_detail_'+id);
+let data=null;
+if(sw){ try{ data=JSON.parse(sw); }catch(e){} }
+
+async function init(){
+  if(!data){
+    try{
+      const list=await loadPhotos();
+      const p=list.find(x=>x.id===id);
+      if(!p){ document.getElementById('dTitle').textContent='未找到该配色'; return; }
+      let cols = (p.colors && p.colors.length) ? p.colors : null;
+      if(!cols){ const img=await loadImage(p.thumb||p.full); cols=img?buildPalette(img):[]; }
+      const styles=matchStyles(cols);
+      data={ph:p, colors:cols, styles};
+    }catch(e){ document.getElementById('dTitle').textContent='加载失败'; return; }
+  }
+  const {ph, colors, styles}=data;
+  document.getElementById('dBig').src=ph.full||ph.thumb;
+  document.getElementById('dTitle').textContent=paletteTitle(colors, styles, ph);
+  document.getElementById('dBy').innerHTML=`Photo by ${ph.photographer||'未知'} · ${ph.source||'图库'} · <a href="${ph.pageLink}" target="_blank" rel="noopener">原图 ↗</a>`;
+  document.getElementById('dTags').innerHTML=(styles||[]).slice(0,5).map(s=>`<span class="b-tag">#${s.name}</span>`).join('') || '<span class="b-tag">#未识别风格</span>';
+
+  renderPalette(colors);
+  if(colors&&colors[0]){
+    const comp=companionColors(colors[0].hex);
+    const items=[
+      {hex:comp.complementary, name:colorName(rgb2hsl(...hex2rgb(comp.complementary)))},
+      {hex:comp.analogous[0], name:colorName(rgb2hsl(...hex2rgb(comp.analogous[0])))},
+      {hex:comp.analogous[1], name:colorName(rgb2hsl(...hex2rgb(comp.analogous[1])))},
+      {hex:comp.triadic[0], name:colorName(rgb2hsl(...hex2rgb(comp.triadic[0])))},
+      {hex:comp.triadic[1], name:colorName(rgb2hsl(...hex2rgb(comp.triadic[1])))}
+    ];
+    const compEl=document.getElementById('dComp');
+    compEl.innerHTML=renderColorChipsHTML(items);
+    compEl.querySelectorAll('.color-card').forEach(el=>{
+      el.onclick=()=>{ const q=hueToColorWord(rgb2hsl(...hex2rgb(el.dataset.hex)).h); location.href=`search.html?q=${encodeURIComponent(q)}&color=${encodeURIComponent(q)}`; };
+    });
+  }
+  const q=(colors&&colors[0])? hueToColorWord(colors[0].hsl.h) : 'color';
+  loadSimilar(ph, colors);
+}
+function renderPalette(colors){
+  const el=document.getElementById('dPalette');
+  el.innerHTML='<div class="color-cards">'+(colors||[]).slice(0,3).map((c,i)=>renderColorCardHTML(c,i)).join('')+'</div>';
+  el.querySelectorAll('.color-card').forEach((card,i)=>{
+    card.onclick=()=>{ const c=(colors||[])[i]; if(!c)return; const q=hueToColorWord(c.hsl.h); location.href=`search.html?q=${encodeURIComponent(q)}&color=${encodeURIComponent(q)}`; };
+  });
+}
+async function loadSimilar(ph, colors){
+  const grid=document.getElementById('dSimilar');
+  grid.innerHTML='<div class="spinner"></div>';
+  try{
+    const listAll=await loadPhotos();
+    let list = findSimilarByPalette(listAll, ph, 15);
+    // 如果内部池子不足，用主色单个词去 API 补充少量
+    if(list.length < 8){
+      const q = (colors && colors[0]) ? hueToColorWord(colors[0].hsl.h) : 'color';
+      const srcs=Object.keys(SOURCES).filter(n=>SOURCES[n].search);
+      const outs=await Promise.allSettled(srcs.map(s=>fetchSource(s,q,1,10,'all',q)));
+      let got=[]; outs.forEach(o=>{if(o.status==='fulfilled')got=got.concat(o.value);});
+      const add = got.filter(g=>g.id!==ph.id).slice(0, 15-list.length);
+      list = list.concat(add);
+    }
+    if(list.length===0){ grid.innerHTML='<div class="empty"><h3>暂无同风格影像</h3></div>'; return; }
+    renderGrid(grid, list);
+  }catch(e){ grid.innerHTML='<div class="empty"><h3>加载失败</h3></div>'; }
+}
+init();
+</script>
+</body>
+</html>

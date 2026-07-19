@@ -1,0 +1,175 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>PicSeek · 影集</title>
+<link rel="stylesheet" href="common.css" />
+<style>
+  .album-stats{max-width:680px;margin:18px auto 0;padding:0 18px;display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+  .album-stats .hint{color:var(--muted);font-size:13px}
+  .album-detail{display:none;max-width:1080px;margin:0 auto;padding:0 18px 30px}
+  .album-detail.show{display:block}
+  .album-back{display:inline-flex;align-items:center;gap:6px;color:var(--terra);font-weight:600;font-size:14px;margin:18px 0 16px;cursor:pointer}
+  .album-detail-title{font-size:22px;font-weight:700;margin-bottom:4px}
+  .album-detail-sub{color:var(--muted);font-size:13px;margin-bottom:18px}
+</style>
+</head>
+<body>
+<header>
+  <div class="bar">
+    <div class="brand" onclick="location.href='index.html'">
+      <div class="logo">PicSeek</div>
+      <span class="tagline">全球免费影像 · 一站搜罗</span>
+    </div>
+    <nav>
+      <a class="navlink" href="search.html">图片</a>
+      <a class="navlink" href="color.html">色彩</a>
+      <a class="navlink on" href="album.html">影集</a>
+    </nav>
+  </div>
+</header>
+
+<section class="album-stats" id="albumListView">
+  <div class="total" id="total">我的影集 <small>0 张</small></div>
+  <span class="hint">收藏会按内容自动聚合成影集</span>
+</section>
+
+<div class="album-list" id="albumList"></div>
+
+<div class="album-detail" id="albumDetail">
+  <div class="album-back" onclick="showAlbumList()">← 返回影集</div>
+  <div class="album-detail-title" id="detailTitle"></div>
+  <div class="album-detail-sub" id="detailSub"></div>
+  <div class="grid reveal" id="detailGrid"></div>
+</div>
+
+<footer>
+  <div class="foot">
+    <div class="brand"><div class="logo">PicSeek</div></div>
+    <div>PicSeek · 汇聚全球免费影像　|　图片版权归原作者与摄影师所有</div>
+  </div>
+</footer>
+
+<div class="toast" id="toast"></div>
+
+<script src="common.js"></script>
+<script>
+// 把已有的细分类收敛成少量“影集栏目”，栏目只由实际收藏生成
+const ALBUM_BUCKETS = {
+  '风景自然':'风景', '海洋':'风景',
+  '天空云':'云与天空',
+  '星空夜景':'云与星星',
+  '城市建筑':'城市',
+  '人物':'人与动物', '动物':'人与动物',
+  '美食':'生活', '植物花卉':'生活', '产品静物':'生活',
+  '运动':'运动', '汽车交通':'运动',
+  '抽象极简':'抽象',
+  '其他':'其他'
+};
+const ALBUM_ORDER = ['全部','风景','城市','云与天空','云与星星','人与动物','生活','运动','抽象','其他'];
+
+let ALBUM = []; // {ph, cats:[], styles:[]}
+let ALBUMS = []; // {title, count, photos}
+
+async function classifyLike(ph){
+  let colors = ph.colors || null;
+  if(!colors){
+    const img = await loadImage(ph.thumb);
+    if(img) colors = buildPalette(img);
+  }
+  const cats = classifyMulti(ph.desc, colors);
+  const styles = matchStyles(colors || []);
+  return {cats, styles};
+}
+
+async function buildAlbums(){
+  const likes = getLikes();
+  ALBUM = [];
+  for(const ph of likes){
+    const {cats, styles} = await classifyLike(ph);
+    ALBUM.push({ph, cats, styles});
+  }
+  const bucketPhotos = {};
+  for(const {ph, cats} of ALBUM){
+    const buckets = new Set();
+    buckets.add('全部');
+    for(const c of cats){
+      const b = ALBUM_BUCKETS[c] || c;
+      buckets.add(b);
+    }
+    for(const b of buckets){
+      if(!bucketPhotos[b]) bucketPhotos[b] = [];
+      bucketPhotos[b].push(ph);
+    }
+  }
+  ALBUMS = ALBUM_ORDER.filter(b => bucketPhotos[b] && bucketPhotos[b].length > 0).map(b => ({
+    title: b,
+    count: bucketPhotos[b].length,
+    photos: bucketPhotos[b]
+  }));
+  renderAlbumList();
+}
+
+function renderAlbumList(){
+  document.getElementById('total').innerHTML = '我的影集 <small>' + ALBUM.length + ' 张</small>';
+  const el = document.getElementById('albumList');
+  if(ALBUM.length === 0){
+    el.innerHTML = '<div class="empty"><h3>影集还空着</h3><p>去 <a href="search.html" style="color:var(--terra)">搜图</a> 页面，点任意照片上的 ❤，让它住进你的影集。</p></div>';
+    return;
+  }
+  el.innerHTML = ALBUMS.map((a, i) => {
+    const cover = a.photos[0];
+    const stack1 = a.photos[1] ? `<img class="stack1" src="${a.photos[1].thumb}" alt=""/>` : '';
+    const stack2 = a.photos[2] ? `<img class="stack2" src="${a.photos[2].thumb}" alt=""/>` : '';
+    return `<div class="album-card" data-i="${i}">
+      <div class="album-cover">
+        <img src="${cover.thumb}" alt=""/>
+        ${stack1}
+        ${stack2}
+      </div>
+      <div class="album-meta">
+        <div class="album-title">${a.title}</div>
+        <div class="album-row">
+          <span class="album-tag">影展</span>
+          <span class="album-count">${a.count} 件作品</span>
+        </div>
+      </div>
+    </div>`;
+  }).join('');
+  el.querySelectorAll('.album-card').forEach(card => {
+    card.onclick = () => showAlbumDetail(+card.dataset.i);
+  });
+}
+
+function showAlbumDetail(i){
+  const a = ALBUMS[i];
+  if(!a) return;
+  document.getElementById('albumListView').style.display = 'none';
+  document.getElementById('albumList').style.display = 'none';
+  const detail = document.getElementById('albumDetail');
+  detail.classList.add('show');
+  document.getElementById('detailTitle').textContent = a.title;
+  document.getElementById('detailSub').textContent = a.count + ' 件作品';
+  const grid = document.getElementById('detailGrid');
+  renderGrid(grid, a.photos);
+  grid.querySelectorAll('[data-like]').forEach(b => {
+    b.onclick = ev => { ev.stopPropagation();
+      const ph = a.photos[+b.closest('.pcard').dataset.i];
+      removeLike(ph.id); toast('已移出影集');
+      buildAlbums().then(()=> showAlbumList());
+    };
+  });
+  window.scrollTo({top:0, behavior:'smooth'});
+}
+
+function showAlbumList(){
+  document.getElementById('albumListView').style.display = '';
+  document.getElementById('albumList').style.display = '';
+  document.getElementById('albumDetail').classList.remove('show');
+}
+
+buildAlbums();
+</script>
+</body>
+</html>

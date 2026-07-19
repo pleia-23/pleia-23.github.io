@@ -1,0 +1,323 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>PicSeek · 色彩</title>
+<link rel="stylesheet" href="common.css" />
+<style>
+  .tabs{max-width:1080px;margin:18px auto 0;padding:0 18px;display:flex;gap:8px}
+  .tab{border:1.5px solid var(--border);background:#fff;border-radius:999px;padding:9px 18px;font-size:14px;color:var(--muted);cursor:pointer;font-weight:600}
+  .tab.on{background:var(--ink);color:#fff;border-color:var(--ink)}
+
+  /* 搭配颜色 */
+  .a-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:18px;max-width:1080px;margin:16px auto 0;padding:0 18px}
+  .color-hint{max-width:1080px;margin:14px auto 0;padding:0 18px;color:var(--muted);font-size:13px}
+
+  /* 常用颜色 */
+  #commonView{display:none}
+  .common-wrap{max-width:1080px;margin:0 auto;padding:14px 18px 0;display:grid;grid-template-columns:1fr 1.3fr;gap:22px;align-items:start}
+  .common-list{background:var(--surface);border:1px solid var(--border);border-radius:16px;padding:18px;box-shadow:var(--shadow)}
+  .common-list h3{font-size:15px;margin-bottom:12px}
+  .common-list .hint{font-size:12px;color:var(--muted);margin-bottom:12px}
+  .common-panel{background:var(--surface);border:1px solid var(--border);border-radius:16px;padding:18px;box-shadow:var(--shadow)}
+  .common-panel h3{font-size:15px;margin-bottom:4px}
+  .common-panel .sub{font-size:12px;color:var(--muted);margin-bottom:14px}
+  .bigsw{width:100%;height:120px;border-radius:16px;border:1px solid rgba(0,0,0,.06);display:flex;align-items:flex-end;justify-content:flex-start;padding:12px}
+  .bigsw .hex{background:rgba(255,255,255,.85);color:#111;padding:4px 10px;border-radius:8px;font-weight:700;letter-spacing:1px}
+  #commonResults{margin-top:16px}
+  @media(max-width:800px){.common-wrap{grid-template-columns:1fr}}
+
+  /* 大师风格 */
+  #masterView{display:none}
+  .mtags{display:flex;flex-wrap:wrap;gap:10px;max-width:1080px;margin:16px auto 0;padding:0 18px}
+  .mtag{border:1.5px solid var(--border);background:#fff;border-radius:16px;padding:10px 14px;cursor:pointer;display:flex;align-items:center;gap:8px;font-size:14px}
+  .mtag .e{font-size:18px}
+  .mtag.on{background:var(--ink);color:#fff;border-color:var(--ink)}
+  .mtag.on small{color:#ddd}
+  .mtag small{color:var(--muted);font-size:11px;display:block;max-width:220px;line-height:1.4}
+  #masterStatus{color:var(--muted);font-size:13px;max-width:1080px;margin:14px auto 0;padding:0 18px}
+  .empty{max-width:520px;margin:70px auto;text-align:center;color:var(--muted)}
+  .empty h3{font-size:18px;color:var(--ink);margin-bottom:8px}
+  .pair-sentinel{max-width:1080px;margin:26px auto 40px;padding:0 18px;text-align:center;color:var(--muted);font-size:13px;letter-spacing:1px}
+  .pair-sentinel.loading::after{content:"";display:inline-block;width:13px;height:13px;margin-left:8px;border:2px solid var(--muted);border-top-color:transparent;border-radius:50%;animation:pspin .8s linear infinite;vertical-align:-2px}
+  @keyframes pspin{to{transform:rotate(360deg)}}
+</style>
+</head>
+<body>
+<header>
+  <div class="bar">
+    <div class="brand" onclick="location.href='index.html'">
+      <div class="logo">PicSeek</div>
+      <span class="tagline">全球免费影像 · 一站搜罗</span>
+    </div>
+    <nav>
+      <a class="navlink" href="search.html">图片</a>
+      <a class="navlink on" href="color.html">色彩</a>
+      <a class="navlink" href="album.html">影集</a>
+    </nav>
+  </div>
+</header>
+
+<div class="tabs">
+  <button class="tab on" data-tab="pair">搭配颜色</button>
+  <button class="tab" data-tab="common">常用颜色</button>
+  <button class="tab" data-tab="master">大师风格</button>
+</div>
+
+<!-- 搭配颜色 -->
+<section id="pairView">
+  <div class="pair-head" style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap">
+    <div class="color-hint" style="margin:0">下面是精选照片的搭配色卡。轻触任意一张，进入详情——色块与标签都可直接点。</div>
+    <button id="pairRefresh" class="refresh-btn">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/><path d="M3 12a9 9 0 0 0 9 9 9.75 9.75 0 0 0 6.74-2.74L21 16"/><path d="M16 16h5v5"/></svg>
+      换一批
+    </button>
+  </div>
+  <div class="a-grid reveal" id="pairGrid"></div>
+  <div id="pairSentinel" class="pair-sentinel">下滑加载更多…</div>
+</section>
+
+<!-- 常用颜色 -->
+<section id="commonView">
+  <div class="common-wrap">
+    <div class="common-list">
+      <h3>常用颜色</h3>
+      <div class="hint">挑一种色彩，看它的同类与对色，并一键出图。</div>
+      <div id="commonPalette"></div>
+    </div>
+    <div class="common-panel">
+      <h3 id="commonTitle">挑一个颜色</h3>
+      <div class="sub" id="commonSub">从左侧选一种色彩，这里会浮现它的搭配色与同色系影像。</div>
+      <div id="commonBody" style="display:none">
+        <div class="bigsw" id="bigSw"><span class="hex" id="bigHex">#000000</span></div>
+        <div style="margin-top:14px;font-size:12px;color:var(--muted)">配套颜色</div>
+        <div id="commonComp" style="margin-top:8px"></div>
+        <button id="commonBtn" style="margin-top:14px">📸 按这个色调出图</button>
+        <div class="grid" id="commonResults" style="padding:0;margin-top:14px"></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- 大师风格 -->
+<section id="masterView">
+  <div class="mtags" id="mtags"></div>
+  <div id="masterStatus">正在为每张照片读色、识风格……</div>
+  <div class="a-grid reveal" id="masterGrid" style="margin-top:16px"></div>
+  <div id="masterSentinel" class="pair-sentinel">下滑加载更多…</div>
+</section>
+
+<footer>
+  <div class="foot">
+    <div class="brand"><div class="logo">PicSeek</div></div>
+    <div>PicSeek · 汇聚全球免费影像　|　图片版权归原作者与摄影师所有</div>
+  </div>
+</footer>
+
+<div class="toast" id="toast"></div>
+
+<script src="style-tags.js"></script>
+<script src="common.js"></script>
+<script>
+/* ===================== Tab 切换 ===================== */
+function switchTab(tab){
+  document.querySelectorAll('.tab').forEach(t=>t.classList.toggle('on',t.dataset.tab===tab));
+  document.getElementById('pairView').style.display=tab==='pair'?'block':'none';
+  document.getElementById('commonView').style.display=tab==='common'?'block':'none';
+  document.getElementById('masterView').style.display=tab==='master'?'block':'none';
+  if(tab==='pair' && !PAIR_LOADED){ PAIR_LOADED=true; renderPair(); }
+  if(tab==='common' && !COMMON_LOADED) loadCommonPalette();
+  if(tab==='master'){ renderMasterTags(); if(!MASTER_LOADED) loadMaster(); else filterMaster(MASTER_FILTER); }
+}
+let currentTab='pair';
+document.querySelectorAll('.tab').forEach(t=>t.onclick=()=>{currentTab=t.dataset.tab;switchTab(currentTab);});
+
+/* ===================== 搭配颜色（A 卡入口，随机+换一批） ===================== */
+let PAIR_LOADED=false, PAIR_MAP={}, PAIR_PHOTOS=[];
+let PAIR_POOL=[], PAIR_OFFSET=0;
+const PAIR_BATCH=36;
+let PAIR_OBSERVER=null;
+// 统一加载：拉完 photos.json 后补全色对象（hsl/rgb/lab/name）
+async function loadPhotos(){
+  const j=await loadPhotosData();
+  const list=j.results||[];
+  if(typeof normalizePhotos==='function') normalizePhotos(list);
+  return list;
+}
+async function ensurePairPhotos(){
+  if(PAIR_PHOTOS.length) return;
+  PAIR_PHOTOS=await loadPhotos();
+}
+function pairCardHTML(p){
+  const cols=(p.colors && p.colors.length>=2)? p.colors : null;
+  if(!cols) return null;
+  const styles=matchStyles(cols);
+  PAIR_MAP[p.id]={ph:p, colors:cols, styles};
+  return renderACardHTML(p, cols, {title:paletteTitle(cols, styles, p), sub:'COLOR PALETTE', info:`Photo by ${p.photographer||'未知'}`});
+}
+function pairAppendBatch(){
+  const grid=document.getElementById('pairGrid');
+  const batch=PAIR_POOL.slice(PAIR_OFFSET, PAIR_OFFSET+PAIR_BATCH);
+  if(batch.length===0){ pairSentinel(true); return; }
+  let html='';
+  for(const p of batch){ const h=pairCardHTML(p); if(h) html+=h; }
+  grid.insertAdjacentHTML('beforeend', html);
+  PAIR_OFFSET+=batch.length;
+  bindACards(grid, PAIR_MAP);
+  pairSentinel(PAIR_OFFSET>=PAIR_POOL.length);
+}
+function pairSentinel(done){
+  const s=document.getElementById('pairSentinel');
+  if(!s) return;
+  s.textContent = done ? '— 已经到底啦 —' : '下滑加载更多…';
+  s.classList.toggle('loading', !done);
+}
+function pairObserve(){
+  const s=document.getElementById('pairSentinel');
+  if(!s || !('IntersectionObserver' in window)) return;
+  if(PAIR_OBSERVER) PAIR_OBSERVER.disconnect();
+  PAIR_OBSERVER=new IntersectionObserver(es=>{
+    if(es[0].isIntersecting && PAIR_OFFSET<PAIR_POOL.length) pairAppendBatch();
+  }, {rootMargin:'400px'});
+  PAIR_OBSERVER.observe(s);
+}
+async function renderPair(isReset){
+  const grid=document.getElementById('pairGrid');
+  if(!isReset) grid.innerHTML='<div class="spinner"></div>';
+  await ensurePairPhotos();
+  PAIR_POOL=PAIR_PHOTOS.slice().sort(()=>Math.random()-0.5);
+  PAIR_OFFSET=0; PAIR_MAP={};
+  grid.innerHTML='';
+  pairAppendBatch();
+  pairObserve();
+}
+
+/* ===================== 常用颜色（圆角色号条） ===================== */
+let COMMON_LOADED=false, commonSelected=null;
+const COMMON_PALETTE=[
+  {name:'克莱因蓝',hex:'#1E3A8A'}, {name:'丰布伦黄',hex:'#F8D26A'}, {name:'深棕',hex:'#8B4513'},
+  {name:'陶土橙',hex:'#E07856'}, {name:'亮黄',hex:'#FFD400'}, {name:'莓紫',hex:'#8E5B9C'},
+  {name:'晴空蓝',hex:'#5B9BD5'}, {name:'湖绿',hex:'#3FA7A0'}, {name:'暖红',hex:'#D6453B'},
+  {name:'珍珠白',hex:'#F7F4EF'}, {name:'墨黑',hex:'#222222'}, {name:'雾霾蓝',hex:'#9DB4C0'}
+];
+function loadCommonPalette(){
+  COMMON_LOADED=true;
+  const el=document.getElementById('commonPalette');
+  el.innerHTML=renderColorChipsHTML(COMMON_PALETTE.map(c=>({hex:c.hex,name:c.name})));
+  el.querySelectorAll('.color-chip').forEach(ch=>{
+    ch.onclick=()=>selectCommonColor(ch.dataset.hex);
+  });
+}
+function selectCommonColor(hex){
+  commonSelected=hex;
+  const name=COMMON_PALETTE.find(c=>c.hex.toUpperCase()===hex.toUpperCase())?.name||'';
+  document.getElementById('commonTitle').textContent=`${name} ${hex.toUpperCase()}`;
+  document.getElementById('commonSub').textContent='这是它的配套颜色，点「出图」按这个色调搜图。';
+  document.getElementById('commonBody').style.display='block';
+  document.getElementById('bigSw').style.background=hex;
+  document.getElementById('bigHex').textContent=hex.toUpperCase();
+  const comp=companionColors(hex);
+  const items=[
+    {hex:comp.complementary, name:colorName(rgb2hsl(...hex2rgb(comp.complementary)))},
+    {hex:comp.analogous[0], name:colorName(rgb2hsl(...hex2rgb(comp.analogous[0])))},
+    {hex:comp.analogous[1], name:colorName(rgb2hsl(...hex2rgb(comp.analogous[1])))},
+    {hex:comp.triadic[0], name:colorName(rgb2hsl(...hex2rgb(comp.triadic[0])))},
+    {hex:comp.triadic[1], name:colorName(rgb2hsl(...hex2rgb(comp.triadic[1])))}
+  ];
+  document.getElementById('commonComp').innerHTML=renderColorChipsHTML(items);
+  document.getElementById('commonResults').innerHTML='';
+}
+document.getElementById('commonBtn').onclick=async()=>{
+  if(!commonSelected) return;
+  const q=hueToColorWord(rgb2hsl(...hex2rgb(commonSelected)).h);
+  const grid=document.getElementById('commonResults'); grid.innerHTML='<div class="spinner"></div>';
+  toast('正在按 '+q+' 色调出图…');
+  const srcs=Object.keys(SOURCES).filter(n=>SOURCES[n].search);
+  const outs=await Promise.allSettled(srcs.map(s=>fetchSource(s, q, 1, 12, 'all', q)));
+  let got=[]; outs.forEach(o=>{if(o.status==='fulfilled')got=got.concat(o.value);});
+  if(got.length===0){ grid.innerHTML='<div class="empty"><h3>暂时没找到同色系影像</h3><p>换个颜色试试</p></div>'; return; }
+  renderGrid(grid, got.slice(0,18));
+};
+
+/* ===================== 大师风格 ===================== */
+let MASTER_LOADED=false, MASTER_PHOTOS=[], MASTER_MAP={}, MASTER_FILTER='all';
+function renderMasterTags(){
+  const tags=(window.STYLE_TAGS||[]);
+  document.getElementById('mtags').innerHTML=`<div class="mtag on" data-id="all"><span class="e">🎯</span><div>全部<small>显示所有已分析照片</small></div></div>`+
+    tags.map(t=>`<div class="mtag" data-id="${t.id}"><span class="e">${t.emoji}</span><div>${t.name}<small>${t.desc}</small></div></div>`).join('');
+  document.querySelectorAll('.mtag').forEach(el=>el.onclick=()=>{
+    document.querySelectorAll('.mtag').forEach(x=>x.classList.remove('on'));
+    el.classList.add('on'); filterMaster(el.dataset.id);
+  });
+}
+let MASTER_POOL=[], MASTER_OFFSET=0;
+const MASTER_BATCH=36;
+let MASTER_OBSERVER=null;
+function filterMaster(id){
+  MASTER_FILTER=id;
+  MASTER_POOL = id==='all'? MASTER_PHOTOS : MASTER_PHOTOS.filter(p=>p.styles.some(s=>s.id===id));
+  MASTER_OFFSET=0; MASTER_MAP={};
+  const grid=document.getElementById('masterGrid');
+  grid.innerHTML='';
+  if(MASTER_POOL.length===0){ grid.innerHTML='<div class="empty"><h3>这组暂时为空</h3><p>换一个风格看看</p></div>'; return; }
+  masterAppendBatch();
+  masterObserve();
+}
+function masterCardHTML(p){
+  const styles=p.styles||[];
+  MASTER_MAP[p.id]={ph:p, colors:p.colors, styles};
+  const styleNames=styles.map(s=>s.name).slice(0,2).join(' · ');
+  const info=`Photo by ${p.photographer||'未知'}${styleNames?' · '+styleNames:''}`;
+  return renderACardHTML(p, p.colors, { title:aCardTitle(p), sub:'COLOR PALETTE', info });
+}
+function masterAppendBatch(){
+  const grid=document.getElementById('masterGrid');
+  const batch=MASTER_POOL.slice(MASTER_OFFSET, MASTER_OFFSET+MASTER_BATCH);
+  if(batch.length===0){ masterSentinel(true); return; }
+  let html='';
+  for(const p of batch){ const h=masterCardHTML(p); if(h) html+=h; }
+  grid.insertAdjacentHTML('beforeend', html);
+  MASTER_OFFSET+=batch.length;
+  bindACards(grid, MASTER_MAP);
+  masterSentinel(MASTER_OFFSET>=MASTER_POOL.length);
+}
+function masterSentinel(done){
+  const s=document.getElementById('masterSentinel');
+  if(!s) return;
+  s.textContent= done? '— 已经到底啦 —':'下滑加载更多…';
+  s.classList.toggle('loading', !done);
+}
+function masterObserve(){
+  const s=document.getElementById('masterSentinel');
+  if(!s||!('IntersectionObserver' in window)) return;
+  if(MASTER_OBSERVER) MASTER_OBSERVER.disconnect();
+  MASTER_OBSERVER=new IntersectionObserver(es=>{
+    if(es[0].isIntersecting && MASTER_OFFSET<MASTER_POOL.length) masterAppendBatch();
+  }, {rootMargin:'400px'});
+  MASTER_OBSERVER.observe(s);
+}
+async function loadMaster(){
+  if(MASTER_LOADED) return;
+  MASTER_LOADED=true;
+  try{
+    const raw=await loadPhotos();
+    document.getElementById('masterStatus').textContent='正在为 '+raw.length+' 张图计算主色与风格…';
+    for(const p of raw){
+      let cols = (p.colors && p.colors.length>=1) ? p.colors : null;
+      if(!cols){ const img=await loadImage(p.thumb||p.full); if(!img) continue; cols=extractDominant(img,3); }
+      if(cols.length<1) continue;
+      const styles=matchStyles(cols);
+      MASTER_PHOTOS.push({...p, colors:cols, styles});
+    }
+    document.getElementById('masterStatus').textContent='完成：'+MASTER_PHOTOS.length+' 张已分析（点上面的风格筛选）';
+    if(currentTab==='master') filterMaster('all');
+  }catch(e){ document.getElementById('masterStatus').textContent='风格分析加载失败，请刷新'; }
+}
+
+// 默认启动
+PAIR_LOADED=true; renderPair();
+document.getElementById('pairRefresh').onclick=renderPair;
+</script>
+</body>
+</html>
