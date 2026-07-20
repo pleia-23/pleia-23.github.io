@@ -116,7 +116,8 @@ const _HOME_CARD={};
       let cols = (p.colors && p.colors.length>=2) ? p.colors : null;
       if(!cols){ const img=await loadImage(p.thumb||p.full); if(!img) continue; cols=buildPalette(img); }
       if(cols.length<2) continue;
-      const {score}=harmonyScore(cols);
+      if(hasPerson(p, cols)) continue;            // 尽量不出现人物图
+      const {score}=harmonyScore(cols, p);
       if(!best || score>best.score){ best={cols,score,p}; }
       if(score>=82) break;
     }

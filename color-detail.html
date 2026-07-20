@@ -15,6 +15,7 @@
   .cd-tags{display:flex;gap:6px;flex-wrap:wrap;margin-top:12px}
   .cd-tags .b-tag{padding:4px 11px;border-radius:999px;font-size:11px;border:1px solid var(--border);color:var(--muted);background:#fff}
   .cd-palette{margin-top:18px}
+  .cd-pair-cap{font-size:15px;font-weight:700;color:var(--terra,#E07856);margin-bottom:12px;letter-spacing:.5px}
   .cd-block{margin-top:48px}
   .cd-h2{font-size:20px;font-weight:700;margin:6px 0 16px;letter-spacing:.3px}
   .cd-sub{font-size:12px;color:var(--muted);margin-bottom:10px}
@@ -131,8 +132,10 @@ async function init(){
 }
 function renderPalette(colors){
   const el=document.getElementById('dPalette');
-  // B 详情只展示图片里提取的两个主色
-  el.innerHTML='<div class="color-cards">'+(colors||[]).slice(0,2).map((c,i)=>renderColorCardHTML(c,i)).join('')+'</div>';
+  // B 详情只展示图片里提取的两个主色，并标明"哪两个色搭、搭出什么效果"
+  const bp = (colors&&colors.length>=2)? bestColorPair(colors): null;
+  const cap = bp? pairCaption(bp, colors): '';
+  el.innerHTML=(cap?`<div class="cd-pair-cap">${cap}</div>`:'')+'<div class="color-cards">'+(colors||[]).slice(0,2).map((c,i)=>renderColorCardHTML(c,i)).join('')+'</div>';
   el.querySelectorAll('.color-card').forEach((card,i)=>{
     card.onclick=()=>{ const c=(colors||[])[i]; if(!c)return; const q=hueToColorWord(c.hsl.h); location.href=`search.html?q=${encodeURIComponent(q)}&color=${encodeURIComponent(q)}`; };
   });

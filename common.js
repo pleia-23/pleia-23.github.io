@@ -244,12 +244,27 @@ function bestColorPair(colors){
   }
   return best;
 }
-function harmonyScore(colors){
+// 人物检测：优先看描述关键词（比单纯看肤色准），人像图配色参考价值低 → 重扣
+const PERSON_RE=/portrait|person|people|human|woman|man|girl|boy|child|kid|model|face|selfie|crowd|family|couple|lady|guy|baby|teenager|bride|groom|student|soldier/i;
+function personPenalty(ph, colors){
+  const desc=(ph&&(ph.desc||''))||'';
+  if(PERSON_RE.test(desc)) return 28;                 // 描述明确有人 → 重扣
+  // 描述缺失时兜底：主色像肤色且占比高
+  const m=colors&&colors[0];
+  if(m&&m.h>10&&m.h<45&&m.s>0.22&&m.s<0.66&&m.l>0.35&&m.l<0.78){
+    const total=colors.reduce((a,c)=>a+(c.c||1),0)||1;
+    const share=(m.c||1)/total;
+    if(share>0.45) return 20;
+  }
+  return 0;
+}
+function hasPerson(ph, colors){ return personPenalty(ph, colors)>0; }
+function harmonyScore(colors, ph){
   if(!colors||colors.length<2) return {score:0, type:'单色', pair:[]};
   const best=bestColorPair(colors);
   let pen=skinPenalty(colors);
-  // 人物肤色扣分，同时叠加"最难受"的内部惩罚（如果最佳对本身就很刺眼）
   pen += uncomfortablePenalty(colors);
+  pen += personPenalty(ph, colors);   // 有人的图整体压低，尽量不进精选
   best.score=Math.max(0, Math.round(best.score-pen));
   return best;
 }
@@ -965,6 +980,17 @@ function textOn(hex){
   const cWhite=cr(1.0,L), cBlack=cr(L,0.0);
   return cWhite >= cBlack ? '#ffffff' : '#1a1a1a';
 }
+// 双色组合文案：主色名 × 辅色名 · 类型（效果），让人一眼看懂"哪两个色搭、搭出什么感觉"
+function pairCaption(res, pool){
+  if(!res || !res.pair || res.pair.length!==2) return '';
+  const [h1,h2]=res.pair;
+  const c1=pool.find(c=>c.hex===h1)||pool[0];
+  const c2=pool.find(c=>c.hex===h2)||pool[1];
+  if(!c1||!c2) return '';
+  const n1=colorName(c1.hsl||c1);
+  const n2=colorName(c2.hsl||c2);
+  return `${n1} × ${n2} · ${res.type||''}`;
+}
 function renderACardHTML(ph, colors, opts){
   opts=opts||{};
   const title=opts.title||aCardTitle(ph);
@@ -991,6 +1017,7 @@ function renderACardHTML(ph, colors, opts){
     const [cr,cg,cb]=hex2rgb(comp); const chsl=rgb2hsl(cr,cg,cb);
     swObjs.push({hex:comp,name:colorName(chsl),role:'搭配'});
   }
+  const cap = (pairRes.pair.length===2) ? pairCaption(pairRes, pool) : '';
   const sws=swObjs.map(c=>`<div class="a-sw" data-hex="${c.hex}">
     <div class="a-dot" style="background:${c.hex}"></div>
     <div><div class="a-hex">${c.hex}</div><div class="a-name">${c.name}</div>${c.role?`<span class="a-role">${c.role}</span>`:''}</div>
@@ -1001,10 +1028,73 @@ function renderACardHTML(ph, colors, opts){
       <div class="a-top"><div class="a-title">${title}</div><div class="a-sub">${sub}</div></div>
       <div class="a-bottom" style="display:flex;justify-content:space-between;align-items:flex-end">
         <div class="a-info">${info}</div>
-        <div class="a-sws">${sws}</div>
+        <div class="a-sws">${sws}${cap?`<div class="a-cap">${cap}</div>`:''}</div>
       </div>
     </div>
   </div>`;
+}
+
+// ===== 画廊渲染（高分榜 top / 奇特榜 odd），独立页与「色彩」页 tab 共用 =====
+function galleryCardHTML(it, n){
+  const {p,res,score,cap,kind}=it;
+  const [h1,h2]=res.pair;
+  const scoreLabel = kind==='odd' ? `奇特 ${score}` : `${score} 分`;
+  return `<div class="gcard">
+    <a class="gimg" href="${p.full||p.thumb}" target="_blank" rel="noopener"><img loading="lazy" decoding="async" src="${p.thumb}" alt=""></a>
+    <div class="gbody">
+      <div class="grow"><span class="grank">#${n}</span><span class="gscore ${kind==='odd'?'gscore-odd':''}">${scoreLabel}</span></div>
+      <span class="gtype">${res.type}</span>
+      <div class="gsw"><span style="background:${h1}"></span><span style="background:${h2}"></span></div>
+      <div class="gcap">${cap}</div>
+      <div class="gby">${p.photographer||'未知'}</div>
+    </div></div>`;
+}
+async function renderGalleryInto(container, mode){
+  if(!container) return;
+  container.innerHTML='<div class="spinner"></div>';
+  try{
+    const j=await loadPhotosData();
+    const list=j.results||[];
+    if(typeof normalizePhotos==='function') normalizePhotos(list);
+
+    if(mode==='odd'){
+      const items=[];
+      for(const p of list){
+        const cols=p.colors; if(!cols||cols.length<2) continue;
+        if(hasPerson(p,cols)) continue;                       // 不上人物
+        const ug=findMostUncomfortablePair(cols); if(!ug) continue;
+        const score=Math.round(discomfortScore(cols));
+        const res={pair:[ug.a.hex, ug.b.hex], type:'奇特色'};
+        items.push({p,res,score,cap:pairCaption(res,cols),kind:'odd'});
+      }
+      items.sort((a,b)=>b.score-a.score);
+      const top=items.slice(0,30);
+      container.innerHTML = top.length? top.map((it,i)=>galleryCardHTML(it,i+1)).join('')
+                                      : '<div class="empty"><h3>暂无奇特色</h3><p>换个图库再来看</p></div>';
+    } else {
+      const items=[];
+      for(const p of list){
+        const cols=p.colors; if(!cols||cols.length<2) continue;
+        if(hasPerson(p,cols)) continue;                       // 不上人物
+        const res=bestColorPair(cols);
+        const pen=skinPenalty(cols)+uncomfortablePenalty(cols);
+        const score=Math.max(0,Math.round(res.score-pen));
+        if(score<=0) continue;
+        items.push({p,res,score,cap:pairCaption(res,cols),kind:'top'});
+      }
+      items.sort((a,b)=>b.score-a.score);
+      // 保证上榜类型多样：每种配色思路都留名额，避免清一色"邻近和谐"
+      const QUOTA={'邻近和谐':10,'互补撞色':7,'中性强调':6,'独特创意':4,'强对比':3};
+      const byType={}; Object.keys(QUOTA).forEach(t=>byType[t]=items.filter(x=>x.res.type===t));
+      const top=[];
+      Object.keys(QUOTA).forEach(t=>{ top.push(...byType[t].slice(0, QUOTA[t])); });
+      container.innerHTML = top.length? top.map((it,i)=>galleryCardHTML(it,i+1)).join('')
+                                      : '<div class="empty"><h3>暂无可展示的配色</h3><p>换个图库再来看</p></div>';
+    }
+  }catch(e){
+    console.error(e);
+    container.innerHTML='<div class="empty"><h3>加载失败</h3><p>请确认与本页同目录下有 photos.json</p></div>';
+  }
 }
 
 // 参考图式横向色卡：左图 + 标题 + 右下三张竖向色卡（色彩页用）

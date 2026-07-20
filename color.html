@@ -63,6 +63,8 @@
   <button class="tab on" data-tab="pair">搭配颜色</button>
   <button class="tab" data-tab="common">常用颜色</button>
   <button class="tab" data-tab="master">大师风格</button>
+  <button class="tab" data-tab="top">高分榜</button>
+  <button class="tab" data-tab="odd">奇特榜</button>
 </div>
 
 <!-- 搭配颜色 -->
@@ -108,6 +110,16 @@
   <div id="masterSentinel" class="pair-sentinel">下滑加载更多…</div>
 </section>
 
+<!-- 高分榜（双色高分配色 Top 30）-->
+<section id="topView" style="display:none">
+  <div class="gallery-grid" id="topGrid" style="margin-top:16px"></div>
+</section>
+
+<!-- 奇特榜（奇特色配色 Top 30）-->
+<section id="oddView" style="display:none">
+  <div class="gallery-grid" id="oddGrid" style="margin-top:16px"></div>
+</section>
+
 <footer>
   <div class="foot">
     <div class="brand"><div class="logo">PicSeek</div></div>
@@ -126,11 +138,16 @@ function switchTab(tab){
   document.getElementById('pairView').style.display=tab==='pair'?'block':'none';
   document.getElementById('commonView').style.display=tab==='common'?'block':'none';
   document.getElementById('masterView').style.display=tab==='master'?'block':'none';
+  document.getElementById('topView').style.display=tab==='top'?'block':'none';
+  document.getElementById('oddView').style.display=tab==='odd'?'block':'none';
   if(tab==='pair' && !PAIR_LOADED){ PAIR_LOADED=true; renderPair(); }
   if(tab==='common' && !COMMON_LOADED) loadCommonPalette();
   if(tab==='master'){ renderMasterTags(); if(!MASTER_LOADED) loadMaster(); else filterMaster(MASTER_FILTER); }
+  if(tab==='top' && !TOP_LOADED){ TOP_LOADED=true; renderGalleryInto(document.getElementById('topGrid'),'top'); }
+  if(tab==='odd' && !ODD_LOADED){ ODD_LOADED=true; renderGalleryInto(document.getElementById('oddGrid'),'odd'); }
 }
 let currentTab='pair';
+let TOP_LOADED=false, ODD_LOADED=false;
 document.querySelectorAll('.tab').forEach(t=>t.onclick=()=>{currentTab=t.dataset.tab;switchTab(currentTab);});
 
 /* ===================== 搭配颜色（A 卡入口，随机+换一批） ===================== */
@@ -152,6 +169,7 @@ async function ensurePairPhotos(){
 function pairCardHTML(p){
   const cols=(p.colors && p.colors.length>=2)? p.colors : null;
   if(!cols) return null;
+  if(hasPerson(p, cols)) return null;            // 尽量不出现人物图
   const styles=matchStyles(cols);
   PAIR_MAP[p.id]={ph:p, colors:cols, styles};
   return renderACardHTML(p, cols, {title:paletteTitle(cols, styles, p), sub:'COLOR PALETTE', info:`Photo by ${p.photographer||'未知'}`});

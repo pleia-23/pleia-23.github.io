@@ -58,6 +58,12 @@
       <span class="chip" data-orient="portrait">竖图</span>
     </div>
   </div>
+  <div class="fgroup"><div class="flabel">排序</div>
+    <div class="seg" id="sortSeg">
+      <span class="chip on" data-sort="score">评分高→低</span>
+      <span class="chip" data-sort="default">图库默认</span>
+    </div>
+  </div>
   <div class="fgroup grow"><div class="flabel">灵感试试</div>
     <div class="quicks">
       <span class="quick" data-q="极简">极简</span>
@@ -124,9 +130,34 @@ async function search(q, reset){
       renderGrid(grid, results);
       statusEl.textContent=`共 ${results.length} 张 · 来自 ${srcs.map(s=>SOURCES[s].label).join(' / ')}`;
       moreBtn.style.display='block';
+      if(smartSort) applySortAndRender();   // 后台按配色评分重排（高→低）
     }
   }catch(e){ toast('出错了：'+e.message); }
   finally{ loading=false; }
+}
+
+// —— 按配色评分排序（评分高先显示）——
+let smartSort=true;   // 默认开启
+// 给单张图当场算配色和谐分：浏览器从缩略图取双主色→bestColorPair 评分（不含人物惩罚，避免误伤搜人像的结果）
+async function scorePhoto(p){
+  if(p.__score!==undefined) return p.__score;
+  try{
+    const img=await loadImage(p.thumb);
+    if(!img){ p.__score=-1; return -1; }
+    const cols=extractDominant(img,2);
+    if(!cols||cols.length<2){ p.__score=-1; return -1; }
+    p.__score=Math.round(bestColorPair(cols).score);
+    return p.__score;
+  }catch(e){ p.__score=-1; return -1; }
+}
+async function applySortAndRender(){
+  if(!smartSort){ renderGrid(grid, results); return; }
+  statusEl.textContent='正在按配色评分排序（高→低）…';
+  await Promise.all(results.map(p=> p.__score!==undefined ? Promise.resolve() : scorePhoto(p)));
+  const scored=results.filter(p=>p.__score>=0).sort((a,b)=>b.__score-a.__score);
+  const unscored=results.filter(p=>p.__score<0);   // 取不到色的沉到底部
+  renderGrid(grid, [...scored,...unscored]);
+  statusEl.textContent=`共 ${results.length} 张 · 已按配色评分（高→低）排序`;
 }
 
 // 事件
@@ -141,6 +172,13 @@ document.getElementById('srcGroup').addEventListener('click',e=>{
   const c=e.target.closest('[data-source]'); if(!c) return;
   const n=c.dataset.source; cfg.sources[n]=!cfg.sources[n]; renderSourceChips();
   if(curQuery) search(curQuery,true);
+});
+document.getElementById('sortSeg').addEventListener('click',e=>{
+  const c=e.target.closest('[data-sort]'); if(!c) return;
+  document.querySelectorAll('[data-sort]').forEach(x=>x.classList.remove('on'));
+  c.classList.add('on');
+  smartSort = c.dataset.sort==='score';
+  if(curQuery) applySortAndRender();
 });
 
 document.querySelectorAll('.quick').forEach(q=>q.onclick=()=>{
