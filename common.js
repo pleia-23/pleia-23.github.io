@@ -18,24 +18,37 @@ const STATIC_PHOTOS_URL = (location.pathname.replace(/[^/]*$/, '')) + 'photos.js
    首次加载后把数据存进浏览器本地（localStorage），之后打开秒出，
    后台再静默刷新一次。所有功能照常，不丢任何特性。 */
 const LS_PHOTOS = 'picseek_photos_v1';
+// 站点根目录（用于拼分片路径，兼容首页/子页面）
+function _staticBase(){ return location.pathname.replace(/[^/]*$/, ''); }
+// 分片加载：photos.0.json / photos.1.json ... 直到取不到（404）为止，合并 results
+async function _loadChunked(){
+  const base = _staticBase();
+  const out = [];
+  for(let i=0; i<9999; i++){
+    const r = await fetch(base + 'photos.' + i + '.json', {cache:'force-cache'});
+    if(!r.ok) break;                       // 没有下一片就结束
+    const j = await r.json();
+    if(j && Array.isArray(j.results)) out.push(...j.results);
+    else if(Array.isArray(j)) out.push(...j);
+  }
+  if(out.length === 0) throw new Error('no photos chunks found');
+  return {results: out};
+}
 async function loadPhotosData(){
   let cached = null;
   try{ const raw = localStorage.getItem(LS_PHOTOS); if(raw) cached = JSON.parse(raw); }catch(e){}
-  const fetchFresh = async (url)=>{
-    const r = await fetch(url, {cache:'force-cache'});
-    if(!r.ok) throw new Error('photos fetch failed (' + url + '): ' + r.status);
-    const j = await r.json();
-    try{ localStorage.setItem(LS_PHOTOS, JSON.stringify(j)); }catch(e){}
-    return j;
-  };
+  const stash = (j)=>{ try{ localStorage.setItem(LS_PHOTOS, JSON.stringify(j)); }catch(e){} };
   if(cached){
-    // 先用缓存秒开，后台静默刷新（先试同源静态，再试代理兜底）
-    fetchFresh(STATIC_PHOTOS_URL).catch(()=>fetchFresh(PROXY_PHOTOS_URL).catch(()=>{}));
+    // 先用缓存秒开，后台静默刷新（分片静态优先，再单文件，再代理）
+    _loadChunked().then(stash).catch(()=>fetch(STATIC_PHOTOS_URL,{cache:'force-cache'}).then(r=>r.json()).then(stash).catch(()=>{}));
     return cached;
   }
-  // 首次：先同源静态，失败再代理兜底
-  try{ return await fetchFresh(STATIC_PHOTOS_URL); }
-  catch(e){ return await fetchFresh(PROXY_PHOTOS_URL); }
+  // 首次：分片静态 -> 单文件 photos.json -> 代理兜底
+  try{ const j = await _loadChunked(); stash(j); return j; }
+  catch(e){
+    try{ const j = await fetch(STATIC_PHOTOS_URL,{cache:'force-cache'}).then(r=>{if(!r.ok)throw 0;return r.json();}); stash(j); return j; }
+    catch(e2){ const j = await fetch(PROXY_PHOTOS_URL,{cache:'force-cache'}).then(r=>{if(!r.ok)throw 0;return r.json();}); stash(j); return j; }
+  }
 }
 
 /* ---------- 多图源配置（前端只放名字+能否搜；密钥全在服务端） ---------- */
