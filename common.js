@@ -13,33 +13,46 @@ const PROXY_PHOTOS_URL = API_BASE + '/api/photos';
 // 这样无论是首页 / 还是子页面 color.html，都能正确指向站点根目录的 photos.json。
 const STATIC_PHOTOS_URL = (location.pathname.replace(/[^/]*$/, '')) + 'photos.json';
 
-/* ---------- 照片数据加载（带本地缓存，避免重复下载） ----------
-   优先读同源 /photos.json（静态、秒开），失败才走代理兜底；
-   首次加载后把数据存进浏览器本地（localStorage），之后打开秒出，
-   后台再静默刷新一次。所有功能照常，不丢任何特性。 */
+/* ---------- 照片数据加载（本地持久化，避免重复下载） ----------
+   整库约 8MB，远超 localStorage 的 ~5MB 配额，原先写 localStorage 会静默失败，
+   导致“秒开缓存”形同虚设、每次打开都要重新下载 8MB。改用 IndexedDB（配额数百 MB），
+   首次加载后入库，之后打开直接从本地读取、秒出，后台再静默刷新一次。 */
 const LS_PHOTOS = 'picseek_photos_v1';
 // 站点根目录（用于拼分片路径，兼容首页/子页面）
 function _staticBase(){ return location.pathname.replace(/[^/]*$/, ''); }
-// 分片加载：photos.0.json / photos.1.json ... 直到取不到（404）为止，合并 results
+// 限制 Unsplash 缩略图尺寸：原数据里 Unsplash thumb 用 fit=max 且无宽高限制，
+// 会直接拉原图（可能数 MB），首页/网格首屏极慢。统一压到 400px 宽、q=80、自动格式。
+function capThumb(url){
+  if(!url || url.indexOf('images.unsplash.com') < 0) return url;
+  try{ const u = new URL(url); u.searchParams.set('w','400'); u.searchParams.set('q','80'); u.searchParams.set('auto','format'); u.searchParams.delete('fit'); return u.toString(); }
+  catch(e){ return url; }
+}
+// IndexedDB 轻量 KV（避免 localStorage 5MB 配额导致整库缓存写不进去）
+const IDB_NAME = 'picseek_db', IDB_STORE = 'kv';
+function _idbOpen(){ return new Promise((res)=>{ try{ const r = indexedDB.open(IDB_NAME); r.onupgradeneeded = ()=>{ const db = r.result; if(!db.objectStoreNames.contains(IDB_STORE)) db.createObjectStore(IDB_STORE); }; r.onsuccess = ()=>res(r.result); r.onerror = ()=>res(null); }catch(e){ res(null); } }); }
+async function idbGet(k){ const db = await _idbOpen(); if(!db) return null; return new Promise((res)=>{ try{ const tx = db.transaction(IDB_STORE,'readonly'); const g = tx.objectStore(IDB_STORE).get(k); g.onsuccess = ()=>res(g.result ? g.result.v : null); g.onerror = ()=>res(null); }catch(e){ res(null); } }); }
+async function idbSet(k,v){ const db = await _idbOpen(); if(!db) return false; return new Promise((res)=>{ try{ const tx = db.transaction(IDB_STORE,'readwrite'); tx.objectStore(IDB_STORE).put({k,v}, k); tx.oncomplete = ()=>res(true); tx.onerror = ()=>res(false); }catch(e){ res(false); } }); }
+// 分片加载：并发拉取 photos.0.json … photos.N.json（MAX_CHUNKS 为安全上限，超出部分 404 自动忽略），合并 results
+const MAX_CHUNKS = 16;
 async function _loadChunked(){
   const base = _staticBase();
-  const out = [];
-  for(let i=0; i<9999; i++){
-    const r = await fetch(base + 'photos.' + i + '.json', {cache:'force-cache'});
-    if(!r.ok) break;                       // 没有下一片就结束
-    const j = await r.json();
-    if(j && Array.isArray(j.results)) out.push(...j.results);
-    else if(Array.isArray(j)) out.push(...j);
+  const jobs = [];
+  for(let i=0; i<MAX_CHUNKS; i++){
+    jobs.push((async()=>{ const r = await fetch(base + 'photos.' + i + '.json', {cache:'force-cache'}); if(!r.ok) return null; const j = await r.json(); return (j && Array.isArray(j.results)) ? j.results : (Array.isArray(j) ? j : null); })());
   }
+  const parts = await Promise.all(jobs);
+  const out = [];
+  parts.forEach(p=>{ if(p) out.push(...p); });
   if(out.length === 0) throw new Error('no photos chunks found');
   return {results: out};
 }
 async function loadPhotosData(){
+  const stash = (j)=>{ if(j && j.results) j.results.forEach(p=>{ if(p && p.thumb) p.thumb = capThumb(p.thumb); }); idbSet(LS_PHOTOS, j); };
+  // 优先读 IndexedDB 缓存（秒开），后台静默刷新（分片静态优先，再单文件，再代理）
   let cached = null;
-  try{ const raw = localStorage.getItem(LS_PHOTOS); if(raw) cached = JSON.parse(raw); }catch(e){}
-  const stash = (j)=>{ try{ localStorage.setItem(LS_PHOTOS, JSON.stringify(j)); }catch(e){} };
-  if(cached){
-    // 先用缓存秒开，后台静默刷新（分片静态优先，再单文件，再代理）
+  try{ cached = await idbGet(LS_PHOTOS); }catch(e){}
+  if(cached && cached.results && cached.results.length){
+    cached.results.forEach(p=>{ if(p && p.thumb) p.thumb = capThumb(p.thumb); });
     _loadChunked().then(stash).catch(()=>fetch(STATIC_PHOTOS_URL,{cache:'force-cache'}).then(r=>r.json()).then(stash).catch(()=>{}));
     return cached;
   }
@@ -67,7 +80,7 @@ function normalizePhoto(p, source){
   if(!p || !p.id) return null;
   if(p.thumb || p.full) return {...p, source:source||p.source};
   if(p.urls){ const u=p.urls; return {
-    id:String(p.id), source, thumb:u.small||u.thumb||u.regular, full:u.full||u.raw,
+    id:String(p.id), source, thumb:capThumb(u.small||u.thumb||u.regular), full:u.full||u.raw,
     w:p.width||0, h:p.height||0, photographer:(p.user&&p.user.name)||'未知',
     photographerLink:(p.user&&p.user.links&&p.user.links.html)||'',
     pageLink:(p.links&&p.links.html)||'',
@@ -87,15 +100,21 @@ function normalizePhoto(p, source){
 }
 
 /* ---------- 多源抓取（前端只发请求到代理） ---------- */
+// 会话内搜索结果缓存：同一关键词/分页重复查询（含“加载更多”）直接命中，避免每次都等 2.8s 代理
+const _searchCache = new Map();
 async function fetchSource(name, q, page, per=15, orient='all', color=''){
   const o = orient!=='all'?`&orientation=${orient}`:'';
   const c = color?`&color=${encodeURIComponent(color)}`:'';
+  const key = `${name}|${q}|${page}|${per}|${orient}|${color}`;
+  if(_searchCache.has(key)) return _searchCache.get(key);
   try{
     const r = await fetch(`${API_BASE}/api/${name}?q=${encodeURIComponent(q)}&page=${page}&per_page=${per}${o}${c}`);
     if(!r.ok) return [];
     const j = await r.json().catch(()=>null);
     const list = (j&&j.results) ? j.results : (Array.isArray(j)?j:[]);
-    return list.map(p=>normalizePhoto(p, name)).filter(p=>p && p.thumb);
+    const out = list.map(p=>normalizePhoto(p, name)).filter(p=>p && p.thumb);
+    _searchCache.set(key, out);
+    return out;
   }catch(e){ return []; }
 }
 
